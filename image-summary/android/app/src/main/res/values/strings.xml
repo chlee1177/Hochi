@@ -1,0 +1,4 @@
+<resources>
+    <string name="consent">선택한 이미지를 분석 서버와 OpenAI에 전송하는 데 동의합니다.</string>
+    <string name="selected">이미지 선택 완료 · %1$d KiB</string>
+</resources>

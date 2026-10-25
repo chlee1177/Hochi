@@ -1,0 +1,1 @@
+PASS GUI: local privacy hold, AI hierarchy/summary/tags, review filter, edit dialog, rename approval, selection, move, local search, duplicates, history, undo, automatic hold, per-file AI permission (mock AI)

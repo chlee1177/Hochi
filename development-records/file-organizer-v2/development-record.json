@@ -1,0 +1,136 @@
+{
+  "record_id": "003",
+  "completed_at": "2026-10-25T08:29:06.665676+09:00",
+  "user_request": "내가 원하는 것은 파일 위치를 지정하면 그곳에 있는 파일 전부를 AI로 확인한 후 자동으로 분류해주는 것을 원해",
+  "clarifications": {
+    "analysis": "파일명과 지원되는 파일 내용 분석",
+    "originals": "분류 폴더로 원본 이동"
+  },
+  "baseline": {
+    "path": "/workspace/artifacts/Hochi-starter-projects.zip",
+    "sha256": "77ea945c6e386b5dfd51b39910a7fdee8a55252f370b7afde4f1f564bbdd9a66"
+  },
+  "changes": [
+    {
+      "path": "README.md",
+      "status": "modified",
+      "sha256": "3bbb4825dd1a4a1d85e9fc8be0decb8eadab9cb97b96533b35998e74187f0428"
+    },
+    {
+      "path": "file-organizer/README.md",
+      "status": "modified",
+      "sha256": "88608bb080a11b6399be10a67d8cf746fe68f500024870d03b52e646f17c17b2"
+    },
+    {
+      "path": "file-organizer/app.py",
+      "status": "modified",
+      "sha256": "39679f021b079c2417ba5c73265710ac0b953e2452dc9b92f05d412682255fe1"
+    },
+    {
+      "path": "file-organizer/build_exe.bat",
+      "status": "modified",
+      "sha256": "9b34896ccbb4ea2310f695d37b3c588c9c4ed854a28f50dbf00d45f9c85a679e"
+    },
+    {
+      "path": "file-organizer/folder_organizer.py",
+      "status": "added",
+      "sha256": "8ea6b89f03a599e97cd45ee0fddb90ccac85ee095677bf50a78a4e768b99b536"
+    },
+    {
+      "path": "file-organizer/requirements.txt",
+      "status": "added",
+      "sha256": "3ec8922905dc4e3a10c3b46bd7fba023c37ffc309d51c6bed2a13ec3e98177fd"
+    },
+    {
+      "path": "file-organizer/setup.bat",
+      "status": "added",
+      "sha256": "47b429d1ce60a04077b5f8ddaaa78972a6d7a5127c11881b5f668d24906b6b9d"
+    },
+    {
+      "path": "file-organizer/start.bat",
+      "status": "modified",
+      "sha256": "69a712509c325f4cac93bcac457c8f6f815cd983d64c3e28e9cce7212c5dce19"
+    },
+    {
+      "path": "tests/test_folder_organizer.py",
+      "status": "added",
+      "sha256": "309f4616454f509bfb19dadb79ff10a55c7aa2d7168a34170ae94cd2b7926c1b"
+    },
+    {
+      "path": "tests/smoke_desktop.py",
+      "status": "modified",
+      "sha256": "df923017c67edc60bc32e35639a2568168e431a23df18eed5e06863bfeb41bbe"
+    },
+    {
+      "path": "tests/run_desktop_smoke.py",
+      "status": "added",
+      "sha256": "04f8050c3061a579cf876b0b341e5460a657dd92cae1f3fdc0b35ac4aa7c30e7"
+    }
+  ],
+  "decisions": [
+    "폴더 전체 AI 분석이 성공한 후 원본 이동",
+    "하위 폴더 기본 포함, 결과 폴더와 링크 제외",
+    "지원 문서는 일부 내용, 지원 이미지는 이미지 분석; 그 외 형식은 파일명 분석 표시",
+    "허용 분류 목록 검증",
+    "대상 파일 독점 생성 및 SHA-256 검증 후 원본 삭제",
+    "작업 기록으로 앱 재시작 후 마지막 이동 복구"
+  ],
+  "development_events": [
+    {
+      "event": "원본 ZIP을 작업 폴더에 복원",
+      "result": "기존 파일을 덮어쓰지 않고 복원"
+    },
+    {
+      "event": "화면 코드 적용 첫 시도",
+      "result": "한 패치에서 같은 파일 삭제와 추가를 요청해 도구가 거부. 전체 내용 교체 방식으로 수정"
+    },
+    {
+      "event": "신규 엔진 테스트",
+      "result": "22개 통과"
+    },
+    {
+      "event": "전체 테스트 첫 시도",
+      "result": "HTTP 테스트의 루프백 소켓 생성이 샌드박스 권한 때문에 실패. 로컬 소켓 사용 권한으로 재실행"
+    },
+    {
+      "event": "첫 GUI 확인",
+      "result": "기존 Xvfb 발견 후 실행 흐름 통과. 기본 Tk 9에서 글자 표시 깨짐 확인"
+    },
+    {
+      "event": "글꼴 및 화면 수정",
+      "result": "한국어 글꼴 명시 후에도 기본 Tk 9 문제 지속. 시스템 Python의 Tk 8.6에서 정상 표시 확인. 표 최소 높이를 줄여 하단 상태 메시지 표시"
+    },
+    {
+      "event": "긴 한글 문서 처리 보완",
+      "result": "텍스트 읽기 한도가 UTF-8 문자 중간에 걸릴 수 있어 증분 디코더 적용 및 테스트 보강"
+    },
+    {
+      "event": "최종 검증",
+      "result": "전체 37개 테스트와 Tk 8.6 GUI 통합 테스트 통과. 모의 AI 응답 사용"
+    }
+  ],
+  "validation": {
+    "unit_tests": {
+      "count": 37,
+      "result": "passed",
+      "log": "unit-tests.txt"
+    },
+    "gui": {
+      "result": "passed",
+      "ai": "mock",
+      "log": "gui-tests-tk86.txt",
+      "screenshot": "desktop-mock-demo.png"
+    },
+    "not_verified": [
+      "실제 OpenAI API 호출과 분류 정확도",
+      "Windows 실행",
+      "Windows EXE 빌드"
+    ]
+  },
+  "presentation_topics": [
+    "요구사항 재정의에 따른 파일 단위 복사 방식에서 폴더 단위 원본 이동 방식으로의 변경",
+    "AI 결과를 검증하고 원본을 보호하는 처리",
+    "환경 문제와 기능 오류를 구분한 사례",
+    "실제 AI 성능 검증과 모의 연동 테스트의 차이"
+  ]
+}

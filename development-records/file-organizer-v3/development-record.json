@@ -1,0 +1,142 @@
+{
+  "record_id": "005",
+  "completed_at": "2026-10-25T08:52:59.398885+09:00",
+  "user_request": "슬라이드에서 나온 예시의 이름들은 굳이 실제처럼 볼 필요는 없어 예시 일 뿐이고 구현 안된 부분도 구현해줘",
+  "scope_answer": "핵심 기능과 로컬 검색·중복 탐지까지 구현",
+  "interpretation": "슬라이드의 개별 이름을 고정 규칙이나 실제 파일 목록으로 취급하지 않고 기능 요구를 구현한다.",
+  "baseline": {
+    "path": "/workspace/artifacts/file-organizer-v3/baseline-v2.zip",
+    "sha256": "ad9504f185ed8d95e86a72061415b985e6b4f2e469879a88fbb55b6c3d119794"
+  },
+  "changes": [
+    {
+      "path": "README.md",
+      "status": "modified",
+      "sha256": "30b14c4e4cafca547556393077a48e74e4ab3b864a2de0f246ffb82d7036eb26"
+    },
+    {
+      "path": "file-organizer/README.md",
+      "status": "modified",
+      "sha256": "b468c84d660612dcd68a3ba1f6cbfd6214085ecab4dc05e7fdb422d49a26ec41"
+    },
+    {
+      "path": "file-organizer/app.py",
+      "status": "modified",
+      "sha256": "fdfa4cd1f3a04d67d0db1bebac2a0d6b461eaa243222c130fd516e6fea693777"
+    },
+    {
+      "path": "file-organizer/catalog.py",
+      "status": "added",
+      "sha256": "eceb38f0bffc957b776f9b9eade36620e9064e43d6d4d419366bc529900a4b9c"
+    },
+    {
+      "path": "file-organizer/classification.py",
+      "status": "added",
+      "sha256": "3c826daee50f007f20aa4bb6c399f995607bdd87db81cb8d553679562b6dc33c"
+    },
+    {
+      "path": "file-organizer/folder_organizer.py",
+      "status": "modified",
+      "sha256": "dd30ae0c2a3a4919f35fa72e0ca2b35389fc3895ad808e9869fc68ac338726c1"
+    },
+    {
+      "path": "file-organizer/privacy.py",
+      "status": "added",
+      "sha256": "e580ffbe4c27a4bca47f518642908c525dab06ff319fafcb08b7a7a7606b10ab"
+    },
+    {
+      "path": "tests/test_folder_organizer.py",
+      "status": "modified",
+      "sha256": "f60bc27f77d8de04d3340ebd232e38b3481369bef95ee3f6385f3b719b5e03a3"
+    },
+    {
+      "path": "tests/test_organizer_v3.py",
+      "status": "added",
+      "sha256": "c7c026084e2605464ee24a5d2211973f4ad5080b3415d404cb1939928465ca5f"
+    },
+    {
+      "path": "tests/smoke_desktop.py",
+      "status": "modified",
+      "sha256": "e74c577a4abdb7750a5dbcd1b24c529a19d095498fa961b47464d4ba2bc13e11"
+    }
+  ],
+  "implemented": [
+    "로컬 민감 파일 사전 검사와 검토 대기",
+    "파일별 외부 전송 승인과 로컬 이동 승인 분리",
+    "AI 목적별 1~3단계 폴더 제안",
+    "요약·태그·분류 이유·현재 경로 SQLite 저장",
+    "분류 경로와 새 파일명 수정·실행 대상 선택",
+    "이동·되돌리기와 색인 경로 동기화",
+    "로컬 자연어 입력 키워드 검색",
+    "SHA-256 중복 파일 탐지",
+    "요약·태그 공통 단어 기반 유사 문서 조회",
+    "작업 기록 누적 조회"
+  ],
+  "development_events": [
+    {
+      "event": "기존 v2 소스를 확인하고 기준 ZIP 보존",
+      "result": "기존 소스와 테스트를 바탕으로 확장"
+    },
+    {
+      "event": "미구현 범위 확인",
+      "result": "사용자가 핵심 기능과 로컬 검색·중복 탐지를 선택; Drive·OneDrive는 제외"
+    },
+    {
+      "event": "사전 검사·경로 검증·색인 모듈 분리",
+      "result": "privacy.py, classification.py, catalog.py 추가"
+    },
+    {
+      "event": "첫 기존 엔진 회귀 테스트",
+      "result": "21개 통과, 링크 출력 폴더가 이전보다 이른 분석 저장 단계에서 거부되어 기존 기대 시점 1개 불일치"
+    },
+    {
+      "event": "출력 경로 검사와 회귀 테스트 수정",
+      "result": "분석 시작 시점부터 링크 출력 폴더를 거부하도록 앞당기고 테스트도 실제 요구에 맞게 수정"
+    },
+    {
+      "event": "신규 동작 테스트",
+      "result": "초기 17개 통과"
+    },
+    {
+      "event": "동일 내용 파일 재분석 시 색인 충돌 검토",
+      "result": "서로 다른 위치의 동일 내용 파일이 같은 항목으로 덮이지 않도록 식별자와 현재 경로 기준 갱신 수정"
+    },
+    {
+      "event": "작업 기록·검색·검토 UI 연결",
+      "result": "재시작 후 로그 조회 및 실제 수정 창 조작 테스트 추가"
+    },
+    {
+      "event": "확신도 누락과 숨김 파일 보완",
+      "result": "확신도 누락은 검토 대기, 일반 숨김 파일명은 안전 검증 후 이동 허용"
+    },
+    {
+      "event": "최종 검증",
+      "result": "전체 58개 자동 테스트 및 Tk 8.6 GUI 통합 테스트 통과; 모의 AI 사용"
+    }
+  ],
+  "validation": {
+    "total_tests": 58,
+    "organizer_tests": 43,
+    "new_v3_tests": 21,
+    "gui_result": "passed",
+    "ai": "mock",
+    "logs": [
+      "unit-tests.txt",
+      "gui-tests.txt"
+    ],
+    "screenshots": [
+      "desktop-mock-demo.png",
+      "desktop-mock-demo-search.png"
+    ]
+  },
+  "limitations": [
+    "민감 검사는 파일명·추출 구간의 규칙 기반 탐지로 오탐·누락 가능",
+    "이미지 로컬 OCR 미지원으로 기본 검토 대기",
+    "검색·유사도는 단어 기반이며 임베딩/RAG 아님",
+    "실제 OpenAI 호출과 분류 품질 미검증",
+    "Windows 실행·EXE 빌드 미검증",
+    "클라우드 드라이브 연동은 이번 범위 제외"
+  ],
+  "source_slides": "https://docs.google.com/presentation/d/1nZZdrILbtAEwW_Kyfx3xM2qm9BNiTdUVWqm9N-uivtk/edit",
+  "development_page": "https://chatgpt.com/space/page_fc1118724a7081919aa53421a74cc80b"
+}

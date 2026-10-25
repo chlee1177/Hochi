@@ -1,0 +1,1 @@
+PASS GUI: folder → content analysis → preview → move originals → undo → automatic organization → undo (mock AI)

@@ -1,0 +1,18 @@
+{
+  "record_id": "006",
+  "recorded_at": "2026-10-25T07:35:05.951923+00:00",
+  "user_request": "git에 변경된걸 올려줘",
+  "repository": "https://github.com/chlee1177/Hochi",
+  "target_branch": "master",
+  "operation": "Initial source commit and upload; final commit SHA is available in Git history.",
+  "scope": "Current Hochi sources, file-organizer v2/v3 development evidence and tests",
+  "validation": {
+    "v3_recorded_source_hashes": "matched before commit",
+    "prior_unit_tests": 58,
+    "prior_gui_tests": "passed with mock AI",
+    "credential_pattern_scan": "no matches"
+  },
+  "limitations": [
+    "Live AI quality and Windows EXE execution have not been validated."
+  ]
+}

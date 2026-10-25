@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.env
+.data/
+*.log
+.venv/
+.godot/
+.gradle/
+build/
+local.properties
+core
+dist/
+*.spec
