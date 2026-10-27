@@ -1,0 +1,85 @@
+{
+  "record_id": "008",
+  "completed_at": "2026-10-27T19:59:19.595142+09:00",
+  "user_requests": [
+    "로컬 AI로 ollama와 qwen 조합으로도 가능할까?",
+    "현재 로컬PC가 ram64gb RTX4090이다",
+    "그리고 이미 chatgpt pro를 쓰고있는데 이거로 openai api 대체가 안되나요?"
+  ],
+  "context": "사용자가 OpenAI HTTP 429 오류를 보고한 뒤 로컬 대안 문의. 429의 정확한 원인은 확인하지 못함.",
+  "baseline_commit": "71ebdb49998b61185af64320729e04fb324e3f3d",
+  "implementation": [
+    "Ollama 제공자와 OpenAI 제공자 선택",
+    "qwen3:14b 기본 로컬 모델",
+    "서버·모델 설정 및 파일 전송 없는 설치 정보 연결 확인",
+    "로컬 JSON 스키마 요청과 thinking 비활성화",
+    "API 키 없이 로컬 분석·검토·이동·검색·복구",
+    "민감 파일 개별 분석과 이동 승인 분리 유지",
+    "루프백 주소·로컬 모델 확인, 리디렉션 거부, 클라우드 자동 대체 없음",
+    "모델 미설치·시간 초과·미지원 이미지 안내"
+  ],
+  "parameters": {
+    "model": "qwen3:14b",
+    "url": "http://127.0.0.1:11434",
+    "num_ctx": 16384,
+    "num_predict": 2048,
+    "timeout_seconds": 180
+  },
+  "pro_billing_answer": "현재 API 호출은 ChatGPT Pro 구독으로 대체되지 않음. 공식 참여 앱/도구의 별도 구독 연동은 존재하나 이 프로젝트에는 구현하지 않음.",
+  "sources": [
+    "https://ollama.com/library/qwen3:14b",
+    "https://docs.ollama.com/api/chat",
+    "https://github.com/ollama/ollama/blob/main/docs/api.md",
+    "https://help.openai.com/en/articles/9039756-managing-billing-for-chatgpt-and-the-api-platform",
+    "https://help.openai.com/en/articles/20001542-using-your-chatgpt-plan-in-other-apps-and-sites"
+  ],
+  "development_events": [
+    "기존 공통 OpenAI 런타임을 유지하고 파일 정리 엔진의 AI 함수 주입 경로 활용",
+    "공식 Ollama 모델·요청 형식 확인",
+    "로컬 HTTP 서버로 13개 요청·오류·원본 보호 테스트 작성 및 통과",
+    "GUI 테스트의 다중 with 문 줄바꿈 문법 오류를 괄호로 수정",
+    "README 다중 패치 위치 불일치를 확인하고 작은 순차 패치로 재적용",
+    "실제 HTTP 어댑터를 사용하는 모의 서버 GUI 검증 통과",
+    "전체 71개 테스트 통과"
+  ],
+  "validation": {
+    "unit_tests": 71,
+    "new_ollama_tests": 13,
+    "gui_result": "passed",
+    "server": "local mock HTTP server",
+    "real_model_inference": false,
+    "hardware_benchmark": false
+  },
+  "changes": [
+    {
+      "path": "file-organizer/local_ai.py",
+      "sha256": "bc5c3548740c96a5669675f5a91b6c01011988104f4c1355b6687de32e8ad89e"
+    },
+    {
+      "path": "file-organizer/app.py",
+      "sha256": "b504ed129098b66f23fcbf5858b06a3e3e60d362f2a4e6ebf249f49db1655237"
+    },
+    {
+      "path": "file-organizer/README.md",
+      "sha256": "fb93415ac08418e1f8eead922949e4330cefa9eca1c4ca7dfc07690f9b7f7bdb"
+    },
+    {
+      "path": "README.md",
+      "sha256": "5b64e15c4b4d6c909186c3e7344e1ba22bf51b2468138398732d60f7bc822014"
+    },
+    {
+      "path": "tests/test_local_ai.py",
+      "sha256": "de98bbe74663f9c0c04ce156478632bb25c570644feca7f02cbfc471db88d9c7"
+    },
+    {
+      "path": "tests/smoke_desktop.py",
+      "sha256": "9faa0bd2039953ddbea9f55f297c63e551c7eee79e262e55b438de07212e947a"
+    }
+  ],
+  "limitations": [
+    "실제 Qwen 추론 품질과 RTX 4090 처리 속도 미검증",
+    "Windows 실기기 실행 미검증",
+    "Qwen3 14B는 이미지 입력 미지원",
+    "로컬 PC F:\\SideProject 및 Ollama 설치는 직접 변경하지 않음"
+  ]
+}

@@ -1,0 +1,1 @@
+PASS GUI: OpenAI regression; Ollama settings, local connection check, no-key HTTP analysis, provider invalidation, private-file approval, selected move and undo without cloud fallback (mock servers)

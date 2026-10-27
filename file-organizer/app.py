@@ -9,6 +9,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from folder_organizer import Cancelled, FolderOrganizer, OUTPUT_NAME
+from local_ai import OllamaClient, DEFAULT_MODEL, DEFAULT_URL
 from ui_theme import configure, BG, SURFACE, INK, MUTED, LINE, BLUE, NAVY
 
 
@@ -25,6 +26,11 @@ class App:
         self.use_content = tk.BooleanVar(value=True)
         self.sensitive_terms = tk.StringVar()
         self.key = tk.StringVar(value=os.environ.get('HOCHI_AI_KEY', ''))
+        self.provider = tk.StringVar(value=os.environ.get('HOCHI_AI_PROVIDER', 'openai' if self.key.get() else 'ollama'))
+        if self.provider.get() not in ('openai', 'ollama'):
+            self.provider.set('ollama')
+        self.ollama_url = tk.StringVar(value=os.environ.get('HOCHI_OLLAMA_URL', DEFAULT_URL))
+        self.ollama_model = tk.StringVar(value=os.environ.get('HOCHI_OLLAMA_MODEL', DEFAULT_MODEL))
         self.status = tk.StringVar(value='폴더를 선택하고 AI 분석을 시작하세요.')
         self.query = tk.StringVar()
         self.filter = tk.StringVar(value='전체')
@@ -91,8 +97,11 @@ class App:
         self.cancel_button.grid(row=1, column=1, padx=(10, 0))
         self.cancel_button.grid_remove()
         footer.bind('<Configure>', lambda event: self.status_label.configure(wraplength=max(200, event.width - 120)))
-        for variable in (self.folder, self.recursive, self.use_content, self.sensitive_terms):
+        for variable in (self.folder, self.recursive, self.use_content, self.sensitive_terms,
+                         self.provider, self.ollama_url, self.ollama_model):
             variable.trace_add('write', self.invalidate)
+        for variable in (self.provider, self.ollama_model):
+            variable.trace_add('write', lambda *_: self.update_connection())
         self.key.trace_add('write', lambda *_: self.update_connection())
         self.update_connection()
         self.render()
@@ -249,7 +258,10 @@ class App:
             button.configure(bg='#294977' if i == index else NAVY, fg='white' if i == index else '#B9C8DF')
 
     def update_connection(self):
-        self.connection.set('API 키 입력됨' if self.key.get().strip() else '분석 설정에서 API 키를 연결하세요')
+        if self.provider.get() == 'ollama':
+            self.connection.set('로컬 AI · ' + self.ollama_model.get())
+        else:
+            self.connection.set('OpenAI · API 키 입력됨' if self.key.get().strip() else '분석 설정에서 API 키를 연결하세요')
 
     def open_settings(self):
         if self.busy:
@@ -262,37 +274,107 @@ class App:
         dialog.transient(self.root)
         dialog.resizable(False, False)
         dialog.grab_set()
-        frame = ttk.Frame(dialog, padding=26)
+        frame = ttk.Frame(dialog, padding=22)
         frame.pack(fill='both', expand=True)
         ttk.Label(frame, text='분석 설정', style='Title.TLabel').pack(anchor='w')
-        ttk.Label(frame, text='설정은 이번 실행 동안만 유지됩니다.', style='Muted.TLabel').pack(anchor='w', pady=(4, 20))
+        ttk.Label(frame, text='설정은 이번 실행 동안만 유지됩니다.', style='Muted.TLabel').pack(anchor='w', pady=(4, 12))
         key = tk.StringVar(value=self.key.get())
         recursive = tk.BooleanVar(value=self.recursive.get())
         content = tk.BooleanVar(value=self.use_content.get())
         terms = tk.StringVar(value=self.sensitive_terms.get())
-        ttk.Label(frame, text='OpenAI API 키').pack(anchor='w', pady=(0, 6))
-        key_entry = ttk.Entry(frame, textvariable=key, show='•', width=52)
+        provider = tk.StringVar(value='Ollama · 내 PC' if self.provider.get() == 'ollama' else 'OpenAI · 클라우드')
+        host = tk.StringVar(value=self.ollama_url.get())
+        model = tk.StringVar(value=self.ollama_model.get())
+        check_status = tk.StringVar(value='연결 확인은 모델 설치 여부를 확인하며 파일을 보내지 않습니다.')
+        ttk.Label(frame, text='AI 실행 방식').pack(anchor='w', pady=(0, 4))
+        provider_box = ttk.Combobox(frame, textvariable=provider, values=['Ollama · 내 PC', 'OpenAI · 클라우드'], state='readonly', width=50)
+        provider_box.pack(fill='x', pady=(0, 12))
+        connection_area = ttk.Frame(frame)
+        connection_area.pack(fill='x')
+        cloud = ttk.Frame(connection_area)
+        ttk.Label(cloud, text='OpenAI API 키').pack(anchor='w', pady=(0, 4))
+        key_entry = ttk.Entry(cloud, textvariable=key, show='•', width=52)
         key_entry.pack(fill='x')
-        ttk.Label(frame, text='키는 파일에 저장하지 않습니다. API 비용은 별도입니다.', style='Muted.TLabel').pack(anchor='w', pady=(6, 16))
+        ttk.Label(cloud, text='키는 파일에 저장하지 않습니다. API 비용은 별도입니다.', style='Muted.TLabel').pack(anchor='w', pady=(4, 12))
+        local = ttk.Frame(connection_area)
+        local.columnconfigure(0, weight=1)
+        local.columnconfigure(1, weight=1)
+        ttk.Label(local, text='Ollama 서버 주소').grid(row=0, column=0, sticky='w')
+        ttk.Label(local, text='설치한 모델').grid(row=0, column=1, sticky='w')
+        host_entry = ttk.Entry(local, textvariable=host, width=27)
+        host_entry.grid(row=1, column=0, sticky='ew', padx=(0, 8), pady=4)
+        model_entry = ttk.Entry(local, textvariable=model, width=23)
+        model_entry.grid(row=1, column=1, sticky='ew', pady=4)
+        check_button = ttk.Button(local, text='연결 확인')
+        check_button.grid(row=2, column=1, sticky='e', pady=4)
+        ttk.Label(local, textvariable=check_status, style='Muted.TLabel', wraplength=480).grid(row=3, column=0, columnspan=2, sticky='w', pady=(0, 10))
+        note = tk.StringVar()
+        def select_provider(_=None):
+            cloud.pack_forget()
+            local.pack_forget()
+            is_local = provider.get() == 'Ollama · 내 PC'
+            (local if is_local else cloud).pack(fill='x')
+            note.set('내 PC에 설치한 모델로 분석합니다. API 키와 API 요금이 필요 없습니다.\n민감 후보는 로컬 모드에서도 승인 후 분석·이동합니다.\nQwen3 14B는 텍스트 모델이며 이미지 내용 분석은 지원하지 않습니다.' if is_local else
+                     '허용된 파일명과 지원 내용이 OpenAI로 전송됩니다.\n민감 후보와 로컬 검사 불가 이미지는 먼저 검토 대기합니다.\n규칙 기반 검사여서 개인정보를 모두 탐지하지는 못합니다.')
+        provider_box.bind('<<ComboboxSelected>>', select_provider)
+        select_provider()
+        def check_connection():
+            if self.busy:
+                return
+            try:
+                client = OllamaClient(host.get(), model.get())
+            except ValueError as error:
+                check_status.set(str(error))
+                return
+            check_status.set('Ollama 연결 확인 중…')
+            inputs = (check_button, host_entry, model_entry, provider_box)
+            for control in inputs:
+                control.state(['disabled'])
+            def task():
+                try:
+                    return client.check()
+                except ValueError as error:
+                    return str(error)
+            def done(message):
+                if dialog.winfo_exists():
+                    check_status.set(message)
+                    for control in inputs:
+                        control.state(['!disabled'])
+                self.status.set(message)
+            self.run(task, done, cancellable=False)
+        check_button.configure(command=check_connection)
         ttk.Checkbutton(frame, text='하위 폴더 포함', variable=recursive).pack(anchor='w')
-        ttk.Checkbutton(frame, text='지원되는 파일 내용도 분석', variable=content).pack(anchor='w', pady=(4, 16))
-        ttk.Label(frame, text='추가 민감 키워드').pack(anchor='w', pady=(0, 6))
+        ttk.Checkbutton(frame, text='지원되는 파일 내용도 분석', variable=content).pack(anchor='w', pady=(4, 10))
+        ttk.Label(frame, text='추가 민감 키워드').pack(anchor='w', pady=(0, 4))
         ttk.Entry(frame, textvariable=terms).pack(fill='x')
-        ttk.Label(frame, text='쉼표로 구분하세요. 예: 회사명, 내부 프로젝트명', style='Muted.TLabel').pack(anchor='w', pady=(6, 16))
-        ttk.Label(frame, text='AI 분석 시 허용된 파일명과 지원 내용이 OpenAI로 전송됩니다.\n민감 후보와 로컬 검사 불가 이미지는 먼저 검토 대기합니다.\n규칙 기반 검사여서 개인정보를 모두 탐지하지는 못합니다.',
+        ttk.Label(frame, text='쉼표로 구분하세요. 예: 회사명, 내부 프로젝트명', style='Muted.TLabel').pack(anchor='w', pady=(4, 10))
+        ttk.Label(frame, textvariable=note,
                   style='Muted.TLabel', wraplength=480).pack(anchor='w')
         actions = ttk.Frame(frame)
-        actions.pack(fill='x', pady=(24, 0))
+        actions.pack(fill='x', pady=(16, 0))
         def save():
+            if self.busy:
+                return
+            selected_provider = 'ollama' if provider.get() == 'Ollama · 내 PC' else 'openai'
+            if selected_provider == 'ollama':
+                try:
+                    OllamaClient(host.get(), model.get())
+                except ValueError as error:
+                    check_status.set(str(error))
+                    return
             self.key.set(key.get().strip())
             for target, draft in ((self.recursive, recursive), (self.use_content, content), (self.sensitive_terms, terms)):
                 if target.get() != draft.get():
                     target.set(draft.get())
+            for target, value in ((self.provider, selected_provider), (self.ollama_url, host.get().strip()),
+                                  (self.ollama_model, model.get().strip())):
+                if target.get() != value:
+                    target.set(value)
             dialog.destroy()
         ttk.Button(actions, text='저장', style='Primary.TButton', command=save).pack(side='right')
         ttk.Button(actions, text='취소', command=dialog.destroy).pack(side='right', padx=8)
         dialog.bind('<Escape>', lambda _: dialog.destroy())
-        key_entry.focus_set()
+        (model_entry if self.provider.get() == 'ollama' else key_entry).focus_set()
 
     def primary_action(self):
         if self.engine and self.engine.plan:
@@ -422,6 +504,7 @@ class App:
                 self.edit_button.state(['!disabled'] if len(paths) == 1 and not self.busy else ['disabled'])
                 self.toggle_button.state(['disabled'] if self.busy else ['!disabled'])
                 if len(paths) == 1 and item.get('review_required'):
+                    self.external_button.configure(text='이 파일의 로컬 분석 허용' if self.provider.get() == 'ollama' else '이 파일의 AI 전송 허용')
                     self.external_button.pack(fill='x', pady=(6, 0))
                     self.external_button.state(['disabled'] if self.busy else ['!disabled'])
         self.details.configure(state='normal')
@@ -434,10 +517,11 @@ class App:
         if selected:
             self.folder.set(selected)
 
-    def new_engine(self):
+    def new_engine(self, ai=None):
         if not self.folder.get().strip():
             raise ValueError('대상 폴더를 선택하세요.')
         return FolderOrganizer(self.folder.get().strip(), self.recursive.get(), self.use_content.get(),
+                               ai=ai,
                                sensitive_terms=[term.strip() for term in self.sensitive_terms.get().split(',') if term.strip()])
 
     def report(self, stage, index, total, item):
@@ -467,22 +551,28 @@ class App:
     def start(self, automatic):
         if self.busy:
             return
-        if not self.key.get().strip():
+        local = self.provider.get() == 'ollama'
+        if not local and not self.key.get().strip():
             self.status.set('분석 설정에서 OpenAI API 키를 입력한 뒤 시작하세요.')
             self.open_settings()
             return
         try:
-            engine = self.new_engine()
+            client = OllamaClient(self.ollama_url.get(), self.ollama_model.get()) if local else None
+            engine = self.new_engine(ai=client)
         except (ValueError, OSError) as error:
             messagebox.showerror('시작할 수 없음', str(error))
             return
         action = '검토 대기 파일을 제외하고 원본을 자동 이동합니다.' if automatic else '원본을 이동하지 않고 분석 결과를 표시합니다.'
-        if not messagebox.askyesno('AI 분석 시작', f'{engine.root}\n\n로컬 사전 검사 후 허용 대상의 파일명·상대 경로와 선택한 지원 내용을 OpenAI로 전송합니다. API 비용이 발생합니다.\n{action}\n계속할까요?'):
+        destination = f'내 PC의 Ollama ({client.model})로 파일명과 지원 내용을 분석합니다. 외부 AI로 자동 전환하지 않습니다.' if local else '로컬 사전 검사 후 허용 대상의 파일명·상대 경로와 선택한 지원 내용을 OpenAI로 전송합니다. API 비용이 발생합니다.'
+        if not messagebox.askyesno('AI 분석 시작', f'{engine.root}\n\n{destination}\n{action}\n계속할까요?'):
             return
-        os.environ['HOCHI_AI_KEY'] = self.key.get().strip()
+        if not local:
+            os.environ['HOCHI_AI_KEY'] = self.key.get().strip()
         self.engine = engine
         self.clear_table()
         def task():
+            if client:
+                client.check()
             plan = engine.analyze(self.report, self.cancel_event)
             return engine.apply(plan['id'], self.report, self.cancel_event) if automatic else plan
         def done(result):
@@ -544,7 +634,7 @@ class App:
         if item['review_required']:
             ttk.Label(frame, text='검토 사유: ' + '; '.join(item['review_reasons']), wraplength=550).pack(anchor='w')
             ttk.Checkbutton(frame, text='파일을 직접 검토했으며 로컬 이동을 승인합니다', variable=approved).pack(anchor='w', pady=8)
-        ttk.Label(frame, text='이 승인은 AI 전송을 허용하지 않습니다.', wraplength=550).pack(anchor='w', pady=6)
+        ttk.Label(frame, text='이 승인은 AI 분석을 허용하지 않습니다.', wraplength=550).pack(anchor='w', pady=6)
         def save():
             try:
                 changed = self.engine.edit_item(paths[0], folder.get(), name.get(), selected.get(), approved.get())
@@ -576,14 +666,17 @@ class App:
             return
         try:
             self.plan_item(paths[0])
-            if not self.key.get().strip():
+            local = self.provider.get() == 'ollama'
+            if not local and not self.key.get().strip():
                 raise ValueError('OpenAI API 키를 입력하세요.')
         except ValueError as error:
             messagebox.showerror('전송 불가', str(error))
             return
-        if not messagebox.askyesno('이 파일의 외부 전송 허용', f'{paths[0]}\n\n이 파일의 파일명·상대 경로와 선택한 지원 내용/이미지가 OpenAI로 전송됩니다. 민감정보가 포함될 수 있습니다.\n이 파일에 한해 전송을 허용할까요?\n이동 승인은 별도로 필요합니다.'):
+        destination = '내 PC의 Ollama에서 분석됩니다.' if local else 'OpenAI로 전송됩니다.'
+        if not messagebox.askyesno('이 파일의 AI 분석 허용', f'{paths[0]}\n\n이 파일의 파일명·상대 경로와 선택한 지원 내용/이미지가 {destination} 민감정보가 포함될 수 있습니다.\n이 파일에 한해 분석을 허용할까요?\n이동 승인은 별도로 필요합니다.'):
             return
-        os.environ['HOCHI_AI_KEY'] = self.key.get().strip()
+        if not local:
+            os.environ['HOCHI_AI_KEY'] = self.key.get().strip()
         engine = self.engine
         def done(item):
             self.view_items[item['relative']] = dict(item)

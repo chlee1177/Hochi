@@ -12,6 +12,7 @@ from tkinter import ttk
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'file-organizer'))
 from app import App
 from folder_organizer import OUTPUT_NAME
+from test_local_ai import fake_ollama
 
 
 def wait(root, app):
@@ -47,6 +48,7 @@ def capture(root, name):
 with tempfile.TemporaryDirectory() as directory:
     root = tk.Tk()
     app = App(root)
+    app.provider.set('openai')
     root.update()
     assert app.primary_button.instate(['disabled'])
     assert not app.detail_actions.winfo_ismapped()
@@ -199,5 +201,48 @@ with tempfile.TemporaryDirectory() as directory:
         wait(root, app)
         assert source.exists() and duplicate.exists() and sensitive.exists() and email.exists()
         errors.assert_not_called()
-    print('PASS GUI: settings save/cancel, draft preservation, contextual actions, analysis without movement, metrics, review edit/approval, selected move, search/duplicates/history navigation, undo, compact layout, per-file AI permission (mock AI)')
+    # Use the real HTTP adapter with a fake local Ollama server, never the cloud API.
+    with (fake_ollama() as server, patch('runtime.urlopen', side_effect=AssertionError('Cloud fallback')),
+          patch('app.messagebox.askyesno', return_value=True) as confirmations, patch('app.messagebox.showerror') as errors):
+        app.key.set('')
+        app.open_settings()
+        root.update()
+        controls = list(widgets(app.settings_dialog))
+        provider = next(w for w in controls if isinstance(w, ttk.Combobox))
+        provider.set('Ollama · 내 PC')
+        provider.event_generate('<<ComboboxSelected>>')
+        host = next(w for w in controls if isinstance(w, ttk.Entry) and w.get() == app.ollama_url.get())
+        host.delete(0, 'end')
+        host.insert(0, server['url'])
+        next(w for w in controls if isinstance(w, ttk.Button) and w.cget('text') == '연결 확인').invoke()
+        wait(root, app)
+        assert '연결 확인' in app.status.get()
+        assert all(r[0] == '/api/show' for r in server['requests'])
+        capture(root, 'ollama-settings')
+        next(w for w in controls if isinstance(w, ttk.Button) and w.cget('text') == '저장').invoke()
+        assert app.provider.get() == 'ollama'
+        assert app.engine is None, 'Provider switch must discard the previous plan'
+        app.primary_button.invoke()
+        wait(root, app)
+        assert '내 PC의 Ollama' in confirmations.call_args.args[1]
+        assert source.exists() and duplicate.exists()
+        assert app.metrics[1].get() == '2'
+        assert len([r for r in server['requests'] if r[0] == '/api/chat']) == 2
+        app.table.selection_set(app.rows['연락메모.txt'])
+        root.update()
+        assert app.external_button.cget('text') == '이 파일의 로컬 분석 허용'
+        app.external_button.invoke()
+        wait(root, app)
+        assert '내 PC의 Ollama' in confirmations.call_args.args[1]
+        assert 'OpenAI' not in confirmations.call_args.args[1]
+        assert not app.plan_item('연락메모.txt')['selected']
+        capture(root, 'ollama')
+        app.primary_button.invoke()
+        wait(root, app)
+        assert not source.exists() and sensitive.exists() and email.exists()
+        app.undo()
+        wait(root, app)
+        assert source.exists() and duplicate.exists()
+        errors.assert_not_called()
+    print('PASS GUI: OpenAI regression; Ollama settings, local connection check, no-key HTTP analysis, provider invalidation, private-file approval, selected move and undo without cloud fallback (mock servers)')
     app.close()
