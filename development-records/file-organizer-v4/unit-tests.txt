@@ -1,0 +1,66 @@
+test_blank_pdf_has_explicit_fallback (test_folder_organizer.EvidenceTests.test_blank_pdf_has_explicit_fallback) ... ok
+test_docx_text_extraction (test_folder_organizer.EvidenceTests.test_docx_text_extraction) ... ok
+test_image_payload_is_forwarded (test_folder_organizer.EvidenceTests.test_image_payload_is_forwarded) ... ok
+test_text_excerpt_and_names_only_option (test_folder_organizer.EvidenceTests.test_text_excerpt_and_names_only_option) ... ok
+test_unsupported_and_invalid_documents_are_explicit (test_folder_organizer.EvidenceTests.test_unsupported_and_invalid_documents_are_explicit) ... ok
+test_ai_failure_keeps_all_originals_and_no_plan (test_folder_organizer.FolderTests.test_ai_failure_keeps_all_originals_and_no_plan) ... ok
+test_cancel_after_first_move_restores_originals (test_folder_organizer.FolderTests.test_cancel_after_first_move_restores_originals) ... ok
+test_cancel_analysis_creates_no_plan_or_moves (test_folder_organizer.FolderTests.test_cancel_analysis_creates_no_plan_or_moves) ... ok
+test_changed_destination_blocks_entire_undo (test_folder_organizer.FolderTests.test_changed_destination_blocks_entire_undo) ... ok
+test_collision_never_overwrites_and_undo_preserves_existing (test_folder_organizer.FolderTests.test_collision_never_overwrites_and_undo_preserves_existing) ... ok
+test_excludes_output_and_optional_nested_folders (test_folder_organizer.FolderTests.test_excludes_output_and_optional_nested_folders) ... ok
+test_failed_later_run_preserves_previous_undo (test_folder_organizer.FolderTests.test_failed_later_run_preserves_previous_undo) ... ok
+test_interrupted_copy_before_source_removal_can_be_undone (test_folder_organizer.FolderTests.test_interrupted_copy_before_source_removal_can_be_undone) ... ok
+test_new_or_modified_files_invalidate_plan (test_folder_organizer.FolderTests.test_new_or_modified_files_invalidate_plan) ... ok
+test_no_fifty_file_or_eight_mib_move_limit (test_folder_organizer.FolderTests.test_no_fifty_file_or_eight_mib_move_limit) ... ok
+test_recursive_content_analysis_move_and_restart_undo (test_folder_organizer.FolderTests.test_recursive_content_analysis_move_and_restart_undo) ... ok
+test_rejects_invalid_ai_category_and_json (test_folder_organizer.FolderTests.test_rejects_invalid_ai_category_and_json) ... ok
+test_second_copy_failure_rolls_back_first_move (test_folder_organizer.FolderTests.test_second_copy_failure_rolls_back_first_move) ... ok
+test_source_collision_during_undo_is_not_overwritten (test_folder_organizer.FolderTests.test_source_collision_during_undo_is_not_overwritten) ... ok
+test_symlinks_skipped_and_output_link_rejected (test_folder_organizer.FolderTests.test_symlinks_skipped_and_output_link_rejected) ... ok
+test_tampered_journal_cannot_restore_outside_source_folder (test_folder_organizer.FolderTests.test_tampered_journal_cannot_restore_outside_source_folder) ... ok
+test_target_name_race_does_not_remove_other_writers_file (test_folder_organizer.FolderTests.test_target_name_race_does_not_remove_other_writers_file) ... ok
+test_foreign_origin_rejected (test_http.HTTPTests.test_foreign_origin_rejected) ... 127.0.0.1 - - [27/Oct/2026 10:29:46] "POST /api/analyze HTTP/1.1" 403 -
+ok
+test_invalid_image_has_meaningful_response (test_http.HTTPTests.test_invalid_image_has_meaningful_response) ... 127.0.0.1 - - [27/Oct/2026 10:29:46] "POST /api/analyze HTTP/1.1" 400 -
+ok
+test_readiness_returns_ai_availability (test_http.HTTPTests.test_readiness_returns_ai_availability) ... 127.0.0.1 - - [27/Oct/2026 10:29:46] "GET /api/status HTTP/1.1" 200 -
+ok
+test_action_history_survives_restart (test_organizer_v3.OrganizerV3Tests.test_action_history_survives_restart) ... ok
+test_arbitrary_valid_hierarchy_not_bound_to_slide_examples (test_organizer_v3.OrganizerV3Tests.test_arbitrary_valid_hierarchy_not_bound_to_slide_examples) ... ok
+test_auth_file_and_custom_keyword_are_held (test_organizer_v3.OrganizerV3Tests.test_auth_file_and_custom_keyword_are_held) ... ok
+test_auto_move_keeps_review_items_available (test_organizer_v3.OrganizerV3Tests.test_auto_move_keeps_review_items_available) ... ok
+test_catalog_failure_rolls_back_files_and_metadata (test_organizer_v3.OrganizerV3Tests.test_catalog_failure_rolls_back_files_and_metadata) ... ok
+test_duplicate_detection_uses_bytes_and_never_deletes (test_organizer_v3.OrganizerV3Tests.test_duplicate_detection_uses_bytes_and_never_deletes) ... ok
+test_images_wait_for_separate_external_permission (test_organizer_v3.OrganizerV3Tests.test_images_wait_for_separate_external_permission) ... ok
+test_invalid_path_and_metadata_cannot_reach_filesystem (test_organizer_v3.OrganizerV3Tests.test_invalid_path_and_metadata_cannot_reach_filesystem) ... ok
+test_low_confidence_stays_for_review (test_organizer_v3.OrganizerV3Tests.test_low_confidence_stays_for_review) ... ok
+test_missing_ai_confidence_does_not_implicitly_approve_moving (test_organizer_v3.OrganizerV3Tests.test_missing_ai_confidence_does_not_implicitly_approve_moving) ... ok
+test_missing_or_changed_files_not_returned_with_stale_summary (test_organizer_v3.OrganizerV3Tests.test_missing_or_changed_files_not_returned_with_stale_summary) ... ok
+test_reanalysis_replaces_index_without_losing_identical_organized_file (test_organizer_v3.OrganizerV3Tests.test_reanalysis_replaces_index_without_losing_identical_organized_file) ... ok
+test_regular_hidden_filename_can_be_organized (test_organizer_v3.OrganizerV3Tests.test_regular_hidden_filename_can_be_organized) ... ok
+test_same_stat_content_change_is_rejected_before_move (test_organizer_v3.OrganizerV3Tests.test_same_stat_content_change_is_rejected_before_move) ... ok
+test_sensitive_filename_never_reaches_ai_or_auto_move (test_organizer_v3.OrganizerV3Tests.test_sensitive_filename_never_reaches_ai_or_auto_move) ... ok
+test_sensitive_manual_move_does_not_authorize_ai (test_organizer_v3.OrganizerV3Tests.test_sensitive_manual_move_does_not_authorize_ai) ... ok
+test_sensitive_text_is_screened_before_ai (test_organizer_v3.OrganizerV3Tests.test_sensitive_text_is_screened_before_ai) ... ok
+test_similar_docs_use_summary_tags_but_exclude_identical_files (test_organizer_v3.OrganizerV3Tests.test_similar_docs_use_summary_tags_but_exclude_identical_files) ... ok
+test_summary_tags_and_search_survive_restart_move_and_undo (test_organizer_v3.OrganizerV3Tests.test_summary_tags_and_search_survive_restart_move_and_undo) ... ok
+test_unrelated_search_does_not_return_all_files (test_organizer_v3.OrganizerV3Tests.test_unrelated_search_does_not_return_all_files) ... ok
+test_user_selects_subset_and_renames_file (test_organizer_v3.OrganizerV3Tests.test_user_selects_subset_and_renames_file) ... ok
+test_completed_response_parsed (test_projects.AITests.test_completed_response_parsed) ... ok
+test_http_error_contains_no_key (test_projects.AITests.test_http_error_contains_no_key) ... ok
+test_missing_key_is_explicit (test_projects.AITests.test_missing_key_is_explicit) ... ok
+test_image_forwarded_and_summary_returned (test_projects.ImageTests.test_image_forwarded_and_summary_returned) ... ok
+test_invalid_image_rejected_before_ai (test_projects.ImageTests.test_invalid_image_rejected_before_ai) ... ok
+test_ai_classification_and_untrusted_folder (test_projects.OrganizerTests.test_ai_classification_and_untrusted_folder) ... ok
+test_collisions_and_undo_do_not_overwrite (test_projects.OrganizerTests.test_collisions_and_undo_do_not_overwrite) ... ok
+test_copy_plan_move_undo_preserves_bytes (test_projects.OrganizerTests.test_copy_plan_move_undo_preserves_bytes) ... ok
+test_invalid_batch_writes_nothing (test_projects.OrganizerTests.test_invalid_batch_writes_nothing) ... ok
+test_path_traversal_sanitized (test_projects.OrganizerTests.test_path_traversal_sanitized) ... ok
+test_rollback_on_second_move_failure (test_projects.OrganizerTests.test_rollback_on_second_move_failure) ... ok
+test_stale_plan_rejected (test_projects.OrganizerTests.test_stale_plan_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 58 tests in 0.915s
+
+OK

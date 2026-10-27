@@ -1,0 +1,1 @@
+PASS GUI: settings save/cancel, draft preservation, contextual actions, analysis without movement, metrics, review edit/approval, selected move, search/duplicates/history navigation, undo, compact layout, per-file AI permission (mock AI)

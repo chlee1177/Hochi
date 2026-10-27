@@ -1,6 +1,5 @@
-"""Desktop UI for private review, AI organization, and local retrieval."""
+"""Desktop workspace for AI proposals, explicit review, and local retrieval."""
 import os
-import json
 import queue
 import subprocess
 import sys
@@ -8,9 +7,9 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-from tkinter import font as tkfont
 
 from folder_organizer import Cancelled, FolderOrganizer, OUTPUT_NAME
+from ui_theme import configure, BG, SURFACE, INK, MUTED, LINE, BLUE, NAVY
 
 
 class App:
@@ -26,120 +25,305 @@ class App:
         self.use_content = tk.BooleanVar(value=True)
         self.sensitive_terms = tk.StringVar()
         self.key = tk.StringVar(value=os.environ.get('HOCHI_AI_KEY', ''))
-        self.status = tk.StringVar(value='폴더를 선택하세요. 민감 후보는 외부 전송·자동 이동 전에 보류합니다.')
+        self.status = tk.StringVar(value='폴더를 선택하고 AI 분석을 시작하세요.')
         self.query = tk.StringVar()
         self.filter = tk.StringVar(value='전체')
-        self.view_items = {}
-        self.rows = {}
-        self.library_items = {}
+        self.library_mode = tk.StringVar(value='파일 검색')
+        self.connection = tk.StringVar()
+        self.page_title = tk.StringVar(value='파일 정리')
+        self.page_description = tk.StringVar(value='흩어진 파일을, 다시 찾기 좋은 구조로.')
+        self.step = tk.StringVar(value='01  폴더 선택    →    02  AI 분석    →    03  검토 후 정리')
+        self.selection_title = tk.StringVar(value='파일 미리보기')
+        self.library_hint = tk.StringVar(value='파일명·요약·태그로 찾으세요. 검색어는 내 PC에만 머뭅니다.')
+        self.metrics = [tk.StringVar(value='0') for _ in range(4)]
+        self.view_items, self.rows, self.library_items = {}, {}, {}
         self.controls = []
-        root.title('Hochi · AI 파일 정리와 로컬 검색')
-        root.geometry('1200x850')
-        root.minsize(1000, 740)
-        style = ttk.Style()
-        style.theme_use('clam')
-        family = '맑은 고딕' if os.name == 'nt' else 'Noto Sans CJK KR'
-        for name in ('TkDefaultFont', 'TkTextFont', 'TkMenuFont', 'TkHeadingFont'):
-            tkfont.nametofont(name).configure(family=family, size=10)
-        style.configure('.', font=(family, 10))
-        style.configure('Title.TLabel', font=(family, 22, 'bold'))
-        style.configure('TButton', padding=6)
-        style.configure('Treeview', rowheight=29)
-        frame = ttk.Frame(root, padding=18)
-        frame.pack(fill='both', expand=True)
+        self.settings_dialog = None
+        root.title('Hochi · AI 파일 정리')
+        root.geometry('1240x850')
+        root.minsize(1100, 760)
+        self.family = configure(root)
+        self.build_sidebar()
+        frame = ttk.Frame(root, padding=(26, 18, 26, 14))
+        frame.pack(side='left', fill='both', expand=True)
         frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(6, weight=1)
-        ttk.Label(frame, text='정리하고, 검토하고, 다시 찾으세요.', style='Title.TLabel').grid(row=0, column=0, sticky='w')
-        ttk.Label(frame, text='로컬 사전 검사 → AI 분류·요약·태그 → 선택 실행 → 검색 · 마지막 작업 되돌리기').grid(row=1, column=0, sticky='w', pady=(4, 12))
-        location = ttk.Frame(frame)
-        location.grid(row=2, column=0, sticky='ew')
-        location.columnconfigure(1, weight=1)
-        ttk.Label(location, text='대상 폴더').grid(row=0, column=0, padx=(0, 8))
-        entry = ttk.Entry(location, textvariable=self.folder)
-        entry.grid(row=0, column=1, sticky='ew')
-        browse = ttk.Button(location, text='폴더 선택', command=self.choose_folder)
-        browse.grid(row=0, column=2, padx=(8, 0))
-        self.controls += [entry, browse]
-        options = ttk.Frame(frame)
-        options.grid(row=3, column=0, sticky='ew', pady=8)
-        for title, variable in [('하위 폴더 포함', self.recursive), ('지원되는 내용도 분석', self.use_content)]:
-            control = ttk.Checkbutton(options, text=title, variable=variable)
-            control.pack(side='left', padx=(0, 14))
-            self.controls.append(control)
-        ttk.Label(options, text='추가 민감 키워드').pack(side='left', padx=(8, 6))
-        terms_entry = ttk.Entry(options, textvariable=self.sensitive_terms, width=35)
-        terms_entry.pack(side='left', fill='x', expand=True)
-        self.controls.append(terms_entry)
-        ttk.Label(options, text='쉼표로 구분').pack(side='left', padx=6)
-        credentials = ttk.Frame(frame)
-        credentials.grid(row=4, column=0, sticky='ew')
-        ttk.Label(credentials, text='OpenAI API 키').pack(side='left', padx=(0, 8))
-        key_entry = ttk.Entry(credentials, textvariable=self.key, show='•', width=38)
-        key_entry.pack(side='left')
-        self.controls.append(key_entry)
-        ttk.Label(credentials, text='키는 파일에 저장하지 않습니다. AI 분석에는 비용이 발생합니다.').pack(side='left', padx=8)
-        ttk.Label(frame, text='로컬 규칙으로 감지한 민감 후보와 검사할 수 없는 이미지는 검토 대기합니다. 자동 탐지는 완전하지 않습니다.', wraplength=950).grid(row=5, column=0, sticky='w', pady=(8, 10))
-        self.tabs = ttk.Notebook(frame)
-        self.tabs.grid(row=6, column=0, sticky='nsew')
-        review = ttk.Frame(self.tabs, padding=10)
-        library = ttk.Frame(self.tabs, padding=10)
-        self.tabs.add(review, text='분류와 검토')
-        self.tabs.add(library, text='로컬 검색과 중복')
-        review.columnconfigure(0, weight=1)
-        review.rowconfigure(2, weight=1)
-        toolbar = ttk.Frame(review)
-        toolbar.grid(row=0, column=0, sticky='ew')
-        for title, action in [
-            ('AI 분석 후 자동 정리', lambda: self.start(True)), ('분석만', lambda: self.start(False)),
-            ('선택한 파일 이동', self.apply), ('마지막 정리 되돌리기', self.undo), ('결과 폴더', self.open_folder)]:
-            self.button(toolbar, title, action)
-        self.cancel_button = ttk.Button(toolbar, text='취소', command=self.cancel, state='disabled')
-        self.cancel_button.pack(side='left')
-        editing = ttk.Frame(review)
-        editing.grid(row=1, column=0, sticky='ew', pady=8)
-        combo = ttk.Combobox(editing, textvariable=self.filter, values=['전체', '검토 대기', '이동 선택', '이동 완료'], width=11, state='readonly')
-        combo.pack(side='left', padx=(0, 8))
-        combo.bind('<<ComboboxSelected>>', lambda _: self.render())
-        self.controls.append(combo)
-        self.button(editing, '선택 파일 수정·승인', self.edit_selected)
-        self.button(editing, '이동 포함 / 제외', self.toggle_selected)
-        self.button(editing, '이 파일의 AI 전송 허용', self.allow_external)
-        ttk.Label(editing, text='행 선택 후 수정 · 여러 행 선택 가능').pack(side='left', padx=8)
-        self.table = self.make_table(review, [('selected', '이동', 55), ('file', '원래 경로', 220),
-                  ('category', '분류 / 새 파일명', 220), ('scope', '분석 근거', 260), ('state', '상태', 130)], row=2)
-        self.table.bind('<<TreeviewSelect>>', lambda _: self.show_details())
-        self.table.bind('<Double-1>', lambda _: self.edit_selected())
-        self.details = tk.Text(review, height=4, wrap='word', font=(family, 10), relief='flat', state='disabled')
-        self.details.grid(row=3, column=0, sticky='ew', pady=(8, 0))
-        library.columnconfigure(0, weight=1)
-        library.rowconfigure(2, weight=1)
-        searchbar = ttk.Frame(library)
-        searchbar.grid(row=0, column=0, sticky='ew')
-        search_entry = ttk.Entry(searchbar, textvariable=self.query, width=35)
-        search_entry.pack(side='left', fill='x', expand=True, padx=(0, 6))
-        search_entry.bind('<Return>', lambda _: self.search())
-        self.controls.append(search_entry)
-        self.button(searchbar, '검색', self.search)
-        self.button(searchbar, '중복 파일', self.duplicates)
-        self.button(searchbar, '유사 문서', self.similar)
-        self.button(searchbar, '작업 기록', self.history)
-        self.button(searchbar, '선택 파일 위치', self.open_search_location)
-        ttk.Label(library, text='파일명·분류·요약·태그를 로컬에서 검색합니다. 중복은 파일 내용 해시, 유사는 요약·태그의 공통 단어 기준입니다.', wraplength=950).grid(row=1, column=0, sticky='w', pady=8)
-        self.library = self.make_table(library, [('path', '현재 경로', 320), ('folder', '분류 / 그룹', 160),
-                      ('tags', '태그 / 일치도', 180), ('summary', '요약 / 관련 파일', 400)], row=2)
-        self.progress = ttk.Progressbar(frame, mode='determinate')
-        self.progress.grid(row=7, column=0, sticky='ew', pady=(10, 6))
-        ttk.Label(frame, textvariable=self.status, wraplength=950).grid(row=8, column=0, sticky='w')
+        frame.rowconfigure(2, weight=1)
+
+        header = ttk.Frame(frame)
+        header.grid(row=0, column=0, sticky='ew', pady=(0, 14))
+        header.columnconfigure(0, weight=1)
+        ttk.Label(header, textvariable=self.page_title, style='Title.TLabel').grid(row=0, column=0, sticky='w')
+        ttk.Label(header, textvariable=self.page_description, style='Muted.TLabel').grid(row=1, column=0, sticky='w', pady=(4, 0))
+        self.settings_button = ttk.Button(header, text='분석 설정', command=self.open_settings)
+        self.settings_button.grid(row=0, column=1, rowspan=2, sticky='e')
+        self.controls.append(self.settings_button)
+
+        location = ttk.Frame(frame, style='Card.TFrame', padding=(16, 12))
+        location.grid(row=1, column=0, sticky='ew', pady=(0, 14))
+        location.columnconfigure(0, weight=1)
+        ttk.Label(location, text='작업 폴더', style='Section.TLabel').grid(row=0, column=0, sticky='w', pady=(0, 8))
+        ttk.Label(location, textvariable=self.connection, style='CardMuted.TLabel').grid(row=0, column=1, sticky='e')
+        self.folder_entry = ttk.Entry(location, textvariable=self.folder)
+        self.folder_entry.grid(row=1, column=0, sticky='ew', padx=(0, 10))
+        self.browse_button = ttk.Button(location, text='폴더 선택', command=self.choose_folder)
+        self.browse_button.grid(row=1, column=1)
+        self.controls += [self.folder_entry, self.browse_button]
+
+        self.tabs = ttk.Notebook(frame, style='Workspace.TNotebook')
+        self.tabs.grid(row=2, column=0, sticky='nsew')
+        review, library, history = (ttk.Frame(self.tabs) for _ in range(3))
+        for panel, title in [(review, '파일 정리'), (library, '파일 검색'), (history, '작업 기록')]:
+            self.tabs.add(panel, text=title)
+        self.tabs.bind('<<NotebookTabChanged>>', self.page_changed)
+        self.build_review(review)
+        self.build_library(library)
+        self.build_history(history)
+
+        footer = ttk.Frame(frame)
+        footer.grid(row=3, column=0, sticky='ew', pady=(12, 0))
+        footer.columnconfigure(0, weight=1)
+        self.progress = ttk.Progressbar(footer, mode='determinate')
+        self.progress.grid(row=0, column=0, columnspan=2, sticky='ew', pady=(0, 8))
+        self.progress.grid_remove()
+        self.status_label = ttk.Label(footer, textvariable=self.status, style='Muted.TLabel', wraplength=800)
+        self.status_label.grid(row=1, column=0, sticky='w')
+        self.cancel_button = ttk.Button(footer, text='작업 취소', command=self.cancel, state='disabled')
+        self.cancel_button.grid(row=1, column=1, padx=(10, 0))
+        self.cancel_button.grid_remove()
+        footer.bind('<Configure>', lambda event: self.status_label.configure(wraplength=max(200, event.width - 120)))
         for variable in (self.folder, self.recursive, self.use_content, self.sensitive_terms):
             variable.trace_add('write', self.invalidate)
+        self.key.trace_add('write', lambda *_: self.update_connection())
+        self.update_connection()
+        self.render()
         root.protocol('WM_DELETE_WINDOW', self.close)
         root.after(80, self.poll)
 
-    def button(self, parent, title, action):
-        button = ttk.Button(parent, text=title, command=action)
-        button.pack(side='left', padx=(0, 6))
+    def build_sidebar(self):
+        rail = tk.Frame(self.root, bg=NAVY, width=172)
+        rail.pack(side='left', fill='y')
+        rail.pack_propagate(False)
+        tk.Label(rail, text='hochi', font=(self.family, 28, 'bold'), fg='white', bg=NAVY).pack(anchor='w', padx=22, pady=(25, 0))
+        tk.Label(rail, text='AI FILE ORGANIZER', font=(self.family, 8), fg='#8FA4C3', bg=NAVY).pack(anchor='w', padx=24, pady=(0, 32))
+        self.nav_buttons = []
+        for index, title in enumerate(('파일 정리', '파일 검색', '작업 기록')):
+            button = tk.Button(rail, text=title, anchor='w', padx=18, pady=12, relief='flat', bd=0,
+                               bg=NAVY, fg='#B9C8DF', activebackground='#253D60', activeforeground='white',
+                               font=(self.family, 11), cursor='hand2', highlightbackground=NAVY, highlightcolor=BLUE,
+                               command=lambda i=index: self.navigate(i))
+            button.pack(fill='x', padx=12, pady=3)
+            self.nav_buttons.append(button)
+        bottom = tk.Frame(rail, bg=NAVY)
+        bottom.pack(side='bottom', fill='x', padx=22, pady=24)
+        tk.Label(bottom, text='내 파일, 내 선택', font=(self.family, 10, 'bold'), fg='#E2EBF9', bg=NAVY).pack(anchor='w')
+        tk.Label(bottom, text='이동 전 검토하고\n언제든 마지막 정리 복구', justify='left',
+                 font=(self.family, 9), fg='#8FA4C3', bg=NAVY).pack(anchor='w', pady=(8, 0))
+
+    def build_review(self, review):
+        review.columnconfigure(0, weight=1)
+        review.rowconfigure(2, weight=1)
+        ttk.Label(review, textvariable=self.step, style='Muted.TLabel').grid(row=0, column=0, sticky='w', pady=(0, 12))
+        cards = ttk.Frame(review)
+        cards.grid(row=1, column=0, sticky='ew', pady=(0, 12))
+        for i, (label, style) in enumerate(zip(('분석한 파일', '정리할 파일', '검토 대기', '이동 완료'),
+                                              ('Metric.TLabel', 'Blue.Metric.TLabel', 'Amber.Metric.TLabel', 'Green.Metric.TLabel'))):
+            cards.columnconfigure(i, weight=1, uniform='metric')
+            card = ttk.Frame(cards, style='Card.TFrame', padding=(16, 7))
+            card.grid(row=0, column=i, sticky='ew', padx=(0, 10 if i < 3 else 0))
+            ttk.Label(card, text=label, style='CardMuted.TLabel').pack(anchor='w')
+            ttk.Label(card, textvariable=self.metrics[i], style=style).pack(anchor='w')
+
+        content = ttk.Frame(review)
+        content.grid(row=2, column=0, sticky='nsew')
+        content.columnconfigure(0, weight=1)
+        content.columnconfigure(1, minsize=258)
+        content.rowconfigure(0, weight=1)
+        table_card = ttk.Frame(content, style='Card.TFrame', padding=(12, 14))
+        table_card.grid(row=0, column=0, sticky='nsew', padx=(0, 12))
+        table_card.columnconfigure(0, weight=1)
+        table_card.rowconfigure(1, weight=1)
+        toolbar = ttk.Frame(table_card, style='Card.TFrame')
+        toolbar.grid(row=0, column=0, sticky='ew', pady=(0, 12))
+        ttk.Label(toolbar, text='분류 제안', style='Section.TLabel').pack(side='left')
+        combo = ttk.Combobox(toolbar, textvariable=self.filter, values=['전체', '검토 대기', '이동 선택', '이동 완료'], width=11, state='readonly')
+        combo.pack(side='right')
+        combo.bind('<<ComboboxSelected>>', lambda _: self.render())
+        self.controls.append(combo)
+        self.table = self.make_table(table_card, [('selected', '이동', 45), ('file', '현재 파일', 175),
+                                                ('category', '정리할 위치', 190), ('state', '상태', 90)], row=1)
+        self.table.tag_configure('held', foreground='#A76608')
+        self.table.tag_configure('moved', foreground='#15806A')
+        self.table.bind('<<TreeviewSelect>>', lambda _: self.show_details())
+        self.table.bind('<Double-1>', lambda _: self.edit_selected())
+        self.empty = ttk.Frame(self.table, style='Card.TFrame', padding=12)
+        icon = tk.Canvas(self.empty, width=84, height=66, bg=SURFACE, highlightthickness=0)
+        icon.pack(pady=(0, 12))
+        icon.create_polygon(8, 15, 34, 15, 42, 23, 76, 23, 76, 57, 8, 57, fill='#DCE8FF', outline='')
+        icon.create_rectangle(8, 29, 76, 57, fill='#AFCBFF', outline='')
+        self.empty_title = ttk.Label(self.empty, text='폴더 하나로 시작하세요', style='Section.TLabel')
+        self.empty_title.pack()
+        self.empty_copy = ttk.Label(self.empty, text='AI가 분류를 제안하면, 확인 후 정리할 수 있어요.', style='CardMuted.TLabel', wraplength=310, justify='center')
+        self.empty_copy.pack(pady=(6, 0))
+
+        detail = ttk.Frame(content, style='Card.TFrame', padding=16, width=258)
+        detail.grid(row=0, column=1, sticky='nsew')
+        detail.grid_propagate(False)
+        detail.columnconfigure(0, weight=1)
+        detail.rowconfigure(1, weight=1)
+        ttk.Label(detail, textvariable=self.selection_title, style='Section.TLabel', wraplength=226).grid(row=0, column=0, sticky='w', pady=(0, 10))
+        self.details = tk.Text(detail, height=6, width=24, wrap='word', font=(self.family, 10), bg=SURFACE,
+                               fg=MUTED, relief='flat', bd=0, highlightthickness=0, state='disabled', cursor='arrow')
+        self.details.grid(row=1, column=0, sticky='nsew')
+        scrollbar = ttk.Scrollbar(detail, orient='vertical', command=self.details.yview)
+        scrollbar.grid(row=1, column=1, sticky='ns')
+        self.details.configure(yscrollcommand=scrollbar.set)
+        self.detail_actions = ttk.Frame(detail, style='Card.TFrame')
+        self.detail_actions.grid(row=2, column=0, columnspan=2, sticky='ew', pady=(12, 0))
+        self.edit_button = ttk.Button(self.detail_actions, text='분류·파일명 수정', command=self.edit_selected)
+        self.edit_button.pack(fill='x', pady=(0, 6))
+        self.toggle_button = ttk.Button(self.detail_actions, text='이동 포함 / 제외', command=self.toggle_selected)
+        self.toggle_button.pack(fill='x')
+        self.external_button = ttk.Button(self.detail_actions, text='이 파일의 AI 전송 허용', command=self.allow_external)
+        self.controls += [self.edit_button, self.toggle_button, self.external_button]
+
+        actions = ttk.Frame(review)
+        actions.grid(row=3, column=0, sticky='ew', pady=(16, 0))
+        self.more_button = ttk.Menubutton(actions, text='더 보기')
+        menu = tk.Menu(self.more_button, tearoff=False)
+        menu.add_command(label='마지막 정리 되돌리기', command=self.undo)
+        menu.add_command(label='결과 폴더 열기', command=self.open_folder)
+        self.more_button.configure(menu=menu)
+        self.more_button.pack(side='left')
+        self.controls.append(self.more_button)
+        self.primary_button = ttk.Button(actions, text='AI 분석 시작', style='Primary.TButton', command=self.primary_action)
+        self.primary_button.pack(side='right')
+        self.reanalyze_button = ttk.Button(actions, text='다시 분석', command=lambda: self.start(False))
+        self.controls += [self.primary_button, self.reanalyze_button]
+
+    def build_library(self, library):
+        library.columnconfigure(0, weight=1)
+        library.rowconfigure(2, weight=1)
+        searchbar = ttk.Frame(library)
+        searchbar.grid(row=0, column=0, sticky='ew', pady=(0, 12))
+        mode = ttk.Combobox(searchbar, textvariable=self.library_mode, values=['파일 검색', '중복 파일', '유사 문서'], width=10, state='readonly')
+        mode.pack(side='left', padx=(0, 8))
+        mode.bind('<<ComboboxSelected>>', lambda _: self.library_mode_changed())
+        self.search_entry = ttk.Entry(searchbar, textvariable=self.query)
+        self.search_entry.pack(side='left', fill='x', expand=True, padx=(0, 8))
+        self.search_entry.bind('<Return>', lambda _: self.run_library())
+        self.search_button = ttk.Button(searchbar, text='검색', style='Primary.TButton', command=self.run_library)
+        self.search_button.pack(side='left')
+        self.controls += [mode, self.search_entry, self.search_button]
+        ttk.Label(library, textvariable=self.library_hint, style='Muted.TLabel', wraplength=800).grid(row=1, column=0, sticky='w', pady=(0, 12))
+        self.library = self.make_table(library, [('path', '현재 경로', 260), ('folder', '분류 / 그룹', 145),
+                                                ('tags', '태그 / 일치도', 150), ('summary', '요약 / 관련 파일', 290)], row=2)
+        self.location_button = ttk.Button(library, text='선택 파일 위치 열기', command=self.open_search_location, state='disabled')
+        self.location_button.grid(row=3, column=0, sticky='e', pady=(12, 0))
+        self.library.bind('<<TreeviewSelect>>', lambda _: self.update_actions())
+        self.controls.append(self.location_button)
+
+    def build_history(self, history):
+        history.columnconfigure(0, weight=1)
+        history.rowconfigure(1, weight=1)
+        toolbar = ttk.Frame(history)
+        toolbar.grid(row=0, column=0, sticky='ew', pady=(0, 12))
+        ttk.Label(toolbar, text='최근 100개 기록 · 시간은 UTC 기준입니다.', style='Muted.TLabel').pack(side='left')
+        button = ttk.Button(toolbar, text='새로고침', command=self.history)
+        button.pack(side='right')
         self.controls.append(button)
-        return button
+        self.history_table = self.make_table(history, [('time', '시각 (UTC)', 180), ('action', '작업', 110), ('detail', '내용', 500)], row=1)
+        undo = ttk.Button(history, text='마지막 정리 되돌리기', command=self.undo)
+        undo.grid(row=2, column=0, sticky='e', pady=(12, 0))
+        self.controls.append(undo)
+
+    def navigate(self, index):
+        self.tabs.select(index)
+        if index == 2 and self.folder.get().strip() and not self.busy:
+            self.history()
+
+    def page_changed(self, _=None):
+        index = self.tabs.index(self.tabs.select())
+        self.page_title.set(('파일 정리', '파일 검색', '작업 기록')[index])
+        self.page_description.set(('흩어진 파일을, 다시 찾기 좋은 구조로.', '정리한 자료를 내 PC에서 빠르게 찾아보세요.', '정리의 과정과 결과를 한눈에 확인하세요.')[index])
+        for i, button in enumerate(self.nav_buttons):
+            button.configure(bg='#294977' if i == index else NAVY, fg='white' if i == index else '#B9C8DF')
+
+    def update_connection(self):
+        self.connection.set('API 키 입력됨' if self.key.get().strip() else '분석 설정에서 API 키를 연결하세요')
+
+    def open_settings(self):
+        if self.busy:
+            return
+        if self.settings_dialog and self.settings_dialog.winfo_exists():
+            self.settings_dialog.lift()
+            return
+        dialog = self.settings_dialog = tk.Toplevel(self.root)
+        dialog.title('분석 설정')
+        dialog.transient(self.root)
+        dialog.resizable(False, False)
+        dialog.grab_set()
+        frame = ttk.Frame(dialog, padding=26)
+        frame.pack(fill='both', expand=True)
+        ttk.Label(frame, text='분석 설정', style='Title.TLabel').pack(anchor='w')
+        ttk.Label(frame, text='설정은 이번 실행 동안만 유지됩니다.', style='Muted.TLabel').pack(anchor='w', pady=(4, 20))
+        key = tk.StringVar(value=self.key.get())
+        recursive = tk.BooleanVar(value=self.recursive.get())
+        content = tk.BooleanVar(value=self.use_content.get())
+        terms = tk.StringVar(value=self.sensitive_terms.get())
+        ttk.Label(frame, text='OpenAI API 키').pack(anchor='w', pady=(0, 6))
+        key_entry = ttk.Entry(frame, textvariable=key, show='•', width=52)
+        key_entry.pack(fill='x')
+        ttk.Label(frame, text='키는 파일에 저장하지 않습니다. API 비용은 별도입니다.', style='Muted.TLabel').pack(anchor='w', pady=(6, 16))
+        ttk.Checkbutton(frame, text='하위 폴더 포함', variable=recursive).pack(anchor='w')
+        ttk.Checkbutton(frame, text='지원되는 파일 내용도 분석', variable=content).pack(anchor='w', pady=(4, 16))
+        ttk.Label(frame, text='추가 민감 키워드').pack(anchor='w', pady=(0, 6))
+        ttk.Entry(frame, textvariable=terms).pack(fill='x')
+        ttk.Label(frame, text='쉼표로 구분하세요. 예: 회사명, 내부 프로젝트명', style='Muted.TLabel').pack(anchor='w', pady=(6, 16))
+        ttk.Label(frame, text='AI 분석 시 허용된 파일명과 지원 내용이 OpenAI로 전송됩니다.\n민감 후보와 로컬 검사 불가 이미지는 먼저 검토 대기합니다.\n규칙 기반 검사여서 개인정보를 모두 탐지하지는 못합니다.',
+                  style='Muted.TLabel', wraplength=480).pack(anchor='w')
+        actions = ttk.Frame(frame)
+        actions.pack(fill='x', pady=(24, 0))
+        def save():
+            self.key.set(key.get().strip())
+            for target, draft in ((self.recursive, recursive), (self.use_content, content), (self.sensitive_terms, terms)):
+                if target.get() != draft.get():
+                    target.set(draft.get())
+            dialog.destroy()
+        ttk.Button(actions, text='저장', style='Primary.TButton', command=save).pack(side='right')
+        ttk.Button(actions, text='취소', command=dialog.destroy).pack(side='right', padx=8)
+        dialog.bind('<Escape>', lambda _: dialog.destroy())
+        key_entry.focus_set()
+
+    def primary_action(self):
+        if self.engine and self.engine.plan:
+            self.apply()
+        else:
+            self.start(False)
+
+    def update_actions(self):
+        pending = self.engine.plan['items'] if self.engine and self.engine.plan else []
+        count = sum(bool(i['selected']) for i in pending)
+        has_plan = bool(self.engine and self.engine.plan)
+        self.primary_button.configure(text=f'{count}개 파일 정리' if count else '검토 후 정리하세요' if has_plan else 'AI 분석 시작')
+        self.primary_button.state(['disabled'] if self.busy or not self.folder.get().strip() or (has_plan and not count) else ['!disabled'])
+        if self.view_items:
+            self.reanalyze_button.pack(side='right', padx=(0, 8))
+        else:
+            self.reanalyze_button.pack_forget()
+        self.location_button.state(['!disabled'] if not self.busy and self.library.selection() else ['disabled'])
+        self.search_entry.state(['disabled'] if self.busy or self.library_mode.get() != '파일 검색' else ['!disabled'])
+
+    def library_mode_changed(self):
+        mode = self.library_mode.get()
+        self.clear_library()
+        self.search_button.configure(text='검색' if mode == '파일 검색' else '검사 시작')
+        self.library_hint.set({'파일 검색': '파일명·요약·태그로 찾으세요. 검색어는 내 PC에만 머뭅니다.',
+                               '중복 파일': '내용이 완전히 같은 파일을 찾습니다. 파일을 자동 삭제하지 않습니다.',
+                               '유사 문서': '저장된 요약·태그의 공통 단어로 관련 문서를 찾습니다.'}[mode])
+        self.update_actions()
+
+    def run_library(self):
+        {'파일 검색': self.search, '중복 파일': self.duplicates, '유사 문서': self.similar}[self.library_mode.get()]()
 
     def make_table(self, parent, columns, row):
         frame = ttk.Frame(parent)
@@ -162,8 +346,8 @@ class App:
         if not self.busy:
             self.engine = None
             self.clear_table()
-            self.library.delete(*self.library.get_children())
-            self.library_items.clear()
+            self.clear_library()
+            self.history_table.delete(*self.history_table.get_children())
             self.status.set('폴더 또는 옵션이 변경되었습니다. 다시 분석하거나 저장된 색인을 검색하세요.')
 
     def clear_table(self):
@@ -184,12 +368,29 @@ class App:
             if self.filter.get() == '이동 완료' and state != '이동 완료':
                 continue
             destination = item['folder'] + '/' + item['new_name']
+            tag = 'moved' if state == '이동 완료' else 'held' if state == '검토 대기' else 'ready'
             row = self.table.insert('', 'end', values=('✓' if item['selected'] and state != '이동 완료' else '—',
-                       relative, destination, item['scope'], state))
+                       relative, destination, state), tags=(tag,))
             self.rows[relative] = row
             if relative in selection:
                 self.table.selection_add(row)
+        items = list(self.view_items.values())
+        moved = sum(item.get('display_state') == '이동 완료' for item in items)
+        held = sum(item.get('review_required') and not item.get('approved_move') and item.get('display_state') != '이동 완료' for item in items)
+        pending = self.engine.plan['items'] if self.engine and self.engine.plan else []
+        for variable, value in zip(self.metrics, (len(items), sum(bool(i['selected']) for i in pending), held, moved)):
+            variable.set(str(value))
+        self.step.set('03  검토 후 정리 · 제안된 위치와 이름을 확인하세요' if pending else
+                      '정리 완료 · 더 보기에서 마지막 작업을 되돌릴 수 있어요' if moved else
+                      '01  폴더 선택    →    02  AI 분석    →    03  검토 후 정리')
+        if not self.table.get_children():
+            self.empty_title.configure(text='표시할 파일이 없어요' if items else '폴더 하나로 시작하세요')
+            self.empty_copy.configure(text='다른 필터를 선택해 보세요.' if items else 'AI가 분류를 제안하면, 확인 후 정리할 수 있어요.')
+            self.empty.place(relx=.5, rely=.52, anchor='center')
+        else:
+            self.empty.place_forget()
         self.show_details()
+        self.update_actions()
 
     def selected_paths(self):
         chosen = set(self.table.selection())
@@ -197,10 +398,32 @@ class App:
 
     def show_details(self):
         paths = self.selected_paths()
-        text = ''
+        text = '목록에서 파일을 선택하면\n요약과 분류 이유를 확인할 수 있어요.\n\n민감 후보는 검토 대기로 남겨두며,\n직접 확인한 파일만 정리할 수 있습니다.'
+        self.selection_title.set('파일 미리보기')
+        self.detail_actions.grid_remove()
+        self.edit_button.pack_forget()
+        self.toggle_button.pack_forget()
+        self.external_button.pack_forget()
         if paths:
             item = self.view_items[paths[0]]
-            text = f"요약: {item.get('summary') or '저장된 요약 없음'}\n태그: {', '.join(item.get('tags', []))}\n이유: {item['reason']}\n검토: {'; '.join(item.get('review_reasons', [])) or '로컬 규칙에서 감지 없음'}"
+            name = item['new_name']
+            self.selection_title.set(f'{len(paths)}개 파일 선택' if len(paths) > 1 else name if len(name) <= 32 else name[:29] + '…')
+            text = f"요약\n{item.get('summary') or '아직 저장된 요약이 없습니다.'}\n\n태그\n{', '.join(item.get('tags', [])) or '—'}\n\n현재 파일\n{paths[0]}\n\n정리할 위치\n{OUTPUT_NAME}/{item['folder']}/{name}\n\n분류 이유\n{item['reason']}\n\n분석 범위\n{item['scope']}\n\n검토 사유\n{'; '.join(item.get('review_reasons', [])) or '로컬 규칙에서 감지 없음'}"
+            if item.get('review_required') and not item.get('approved_move'):
+                text = '검토가 필요해요\n' + '; '.join(item.get('review_reasons', [])) + '\n\n' + text
+            pending = {i['relative'] for i in self.engine.plan['items']} if self.engine and self.engine.plan else set()
+            if all(path in pending for path in paths):
+                self.detail_actions.grid()
+                if len(paths) == 1:
+                    self.edit_button.configure(text='검토·이동 승인' if item.get('review_required') else '분류·파일명 수정')
+                    self.edit_button.pack(fill='x')
+                else:
+                    self.toggle_button.pack(fill='x')
+                self.edit_button.state(['!disabled'] if len(paths) == 1 and not self.busy else ['disabled'])
+                self.toggle_button.state(['disabled'] if self.busy else ['!disabled'])
+                if len(paths) == 1 and item.get('review_required'):
+                    self.external_button.pack(fill='x', pady=(6, 0))
+                    self.external_button.state(['disabled'] if self.busy else ['!disabled'])
         self.details.configure(state='normal')
         self.details.delete('1.0', 'end')
         self.details.insert('1.0', text)
@@ -224,11 +447,15 @@ class App:
         if self.busy:
             return
         self.busy = True
+        self.progress.grid()
+        self.progress.configure(value=0)
         self.cancel_event.clear()
         for control in self.controls:
             control.state(['disabled'])
         if cancellable:
             self.cancel_button.state(['!disabled'])
+            self.cancel_button.grid()
+        self.update_actions()
         self.status.set('작업 중…')
         def work():
             try:
@@ -239,6 +466,10 @@ class App:
 
     def start(self, automatic):
         if self.busy:
+            return
+        if not self.key.get().strip():
+            self.status.set('분석 설정에서 OpenAI API 키를 입력한 뒤 시작하세요.')
+            self.open_settings()
             return
         try:
             engine = self.new_engine()
@@ -396,6 +627,7 @@ class App:
     def clear_library(self):
         self.library.delete(*self.library.get_children())
         self.library_items.clear()
+        self.location_button.state(['disabled'])
 
     def duplicates(self):
         if self.busy:
@@ -450,9 +682,21 @@ class App:
             messagebox.showerror('기록 조회 실패', str(error))
             return
         def done(events):
-            self.clear_library()
+            self.history_table.delete(*self.history_table.get_children())
             for event in events:
-                self.library.insert('', 'end', values=(event['time'], event['kind'], '', json.dumps(event['detail'], ensure_ascii=False)))
+                detail = event['detail']
+                if 'moves' in detail:
+                    moves = detail['moves']
+                    description = f"{len(moves)}개 이동 · " + ' / '.join(f"{move['source']} → {move['target']}" for move in moves[:3])
+                    if len(moves) > 3:
+                        description += f" 외 {len(moves) - 3}개"
+                elif 'folder' in detail:
+                    description = f"{detail['file']} → {detail['folder']}/{detail['new_name']} · " + ('이동 포함' if detail['selected'] else '이동 제외')
+                elif 'files' in detail:
+                    description = f"{detail['files']}개 파일" + (f" · 검토 대기 {detail['held']}개" if 'held' in detail else '')
+                else:
+                    description = detail.get('file', '작업 완료')
+                self.history_table.insert('', 'end', values=(event['time'][:19].replace('T', ' '), event['kind'], description))
             self.status.set(f'최근 작업 기록 {len(events)}개 · 시각은 UTC · 원문 내용은 기록하지 않습니다.')
         self.run(engine.history, done, cancellable=False)
 
@@ -482,6 +726,8 @@ class App:
                 for control in self.controls:
                     control.state(['!disabled'])
                 self.cancel_button.state(['disabled'])
+                self.cancel_button.grid_remove()
+                self.progress.grid_remove()
                 if redraw:
                     self.render()
                     redraw = False
@@ -494,6 +740,8 @@ class App:
                         messagebox.showerror('작업 실패', str(error))
                 else:
                     done(result)
+                    self.render()
+                self.update_actions()
         if redraw:
             self.render()
         self.root.after(80, self.poll)
