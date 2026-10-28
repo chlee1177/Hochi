@@ -1,4 +1,4 @@
-# AI 파일 정리와 로컬 검색 v6
+# FileNest 파일 정리와 로컬 검색 v6.1
 
 폴더를 지정하면 로컬 사전 검사 후 AI가 목적·주제별 폴더, 요약, 태그를 제안합니다. 제안을 검토하고 수정·선택한 파일을 한 번에 정리할 수 있습니다. 슬라이드의 파일명과 폴더명은 예시이며 고정 규칙이 아닙니다.
 
@@ -200,7 +200,7 @@ GUI 테스트는 임시 문서와 모의 AI 응답으로 설정 저장·취소, 
 
 ## EXE와 개발 기록
 
-Windows에서 build_exe.bat를 실행하면 PyInstaller로 dist/HochiFileOrganizer.exe를 만들 수 있습니다. 최신 소스는 GitHub 저장소에서 git pull로 받습니다. 과거 ZIP은 해당 버전의 기록입니다.
+Windows에서 build_exe.bat를 실행하면 PyInstaller로 dist/FileNest.exe를 만들 수 있습니다. 최신 소스는 GitHub 저장소에서 git pull로 받습니다. 과거 ZIP은 해당 버전의 기록입니다.
 
 개발 일지: https://chatgpt.com/space/page_fc1118724a7081919aa53421a74cc80b
 

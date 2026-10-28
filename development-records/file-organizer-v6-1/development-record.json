@@ -5,12 +5,14 @@
   "baseline_commit": "c3d8e7cba05cc4435ff81724453767557ffd4d80",
   "user_requests": [
     "로컬 AI를 qwen3.5:27b으로 쓰도록 바꿨는데 적용해줘 그리고 Hochi로 이름쓰지말고 이름을 새로 추천해주고 내가 선택하면 바꿔주고 사진부분도 어설픈느낌이니 뺴줘",
-    "다른 이름을 다시 추천해줘"
+    "다른 이름을 다시 추천해줘",
+    "FileNest · 파일네스트 — 파일을 모아 보관하는 공간이라는 의미"
   ],
   "changes": [
     "Ollama 기본 모델, 입력 예시, 설치 문서와 환경변수 예시를 qwen3.5:27b로 변경했다. 기존 환경변수 우선순위는 유지한다.",
     "첨부한 화면에서 지목한 사이드바 하단의 내 파일, 내 선택 및 이동 전 검토하고 언제든 마지막 정리 복구 안내 영역을 제거했다.",
-    "새 이름은 사용자 선택 후 적용한다. 파일결·갈피·모아담을 제시한 뒤 다른 후보 요청에 따라 Folio·Tidy·FileNest를 제시했다. 아직 선택하지 않았으므로 이름은 바꾸지 않았다."
+    "파일결·갈피·모아담을 먼저 제안한 뒤 다른 이름 요청에 따라 Folio·Tidy·FileNest를 제시했다. 사용자가 FileNest를 선택하여 앱 제목·사이드바 로고·문서·Windows EXE 출력 이름을 변경했다.",
+    "기존 파일과의 호환성을 위해 내부 .hochi 관리 파일과 HOCHI 환경변수 이름은 유지했다. 저장소 주소와 사용자 로컬 폴더도 변경하지 않았다."
   ],
   "validation": {
     "ollama_tests": 13,
@@ -18,14 +20,19 @@
     "actual_model_inference": false
   },
   "limitations": [
-    "사용자 PC의 실제 Ollama 추론과 Windows 실행은 이 환경에서 수행하지 않았다.",
-    "새 이름 적용은 사용자 선택 대기 상태다."
+    "사용자 PC의 실제 Ollama 추론·Windows 실행·EXE 빌드는 이 환경에서 수행하지 않았다."
   ],
   "changed_files_sha256": {
-    "README.md": "ca8b196296b8e5740ac8109ad298d31199c96bab7a8df92751066d6958ff32fd",
-    "file-organizer/README.md": "99669add1a601d10bebe30b40815f3a214de94beeb589f341a89e348d962850e",
+    "README.md": "2d62d6541f9f474f585fad6a5cb48d8048c5b72cfc8981bc2b7c7586c05c75e2",
+    "file-organizer/README.md": "cf1824bd4c9ac772bef01920c0732e31f5a74fa40e88645a8e2e9e36d6a034ee",
     "file-organizer/local_ai.py": "9419c8eeff9bbc794cd83f181aaa7b23e8783a9dd2e89abfeccfb73eddaf3dcd",
-    "file-organizer/app.py": "bc46eb42418f4a7e45170b2bd4ab6fd79aa12844f9880a60771a5dee36adba92",
-    "tests/test_local_ai.py": "13b9d20fbfea64c1191aa640bcd12d5127ac670433252cc3946b61bef7f97185"
-  }
+    "file-organizer/app.py": "3e7af91fbe1b10305ccb7601869d49a351d4b5512de16d7394c2ffc5726aab47",
+    "tests/test_local_ai.py": "13b9d20fbfea64c1191aa640bcd12d5127ac670433252cc3946b61bef7f97185",
+    "file-organizer/build_exe.bat": "cdd02cee828938f25d55e9292859a9818eb0acf00912cb5cdadda4f680f98f5e"
+  },
+  "development_events": [
+    "모델 기본값과 사이드바 하단 문구 제거를 먼저 80cb646 커밋으로 반영했다. 당시 이름은 선택 대기였다.",
+    "이후 FileNest 선택을 받아 이름을 반영하고 GUI 통합 검사를 다시 실행했다.",
+    "최종 화면에서 FileNest 로고, qwen3.5:27b 모델 표시, 하단 안내 문구 제거를 확인했다."
+  ]
 }

@@ -47,7 +47,7 @@ class App(ProjectUI):
         self.view_items, self.rows, self.library_items = {}, {}, {}
         self.controls = []
         self.settings_dialog = None
-        root.title('Hochi · AI 파일 정리')
+        root.title('FileNest · AI 파일 정리')
         root.geometry('1240x850')
         root.minsize(1100, 800)
         self.family = configure(root)
@@ -121,7 +121,7 @@ class App(ProjectUI):
         rail = tk.Frame(self.root, bg=NAVY, width=172)
         rail.pack(side='left', fill='y')
         rail.pack_propagate(False)
-        tk.Label(rail, text='hochi', font=(self.family, 28, 'bold'), fg='white', bg=NAVY).pack(anchor='w', padx=22, pady=(25, 0))
+        tk.Label(rail, text='FileNest', font=(self.family, 22, 'bold'), fg='white', bg=NAVY).pack(anchor='w', padx=22, pady=(25, 0))
         tk.Label(rail, text='AI FILE ORGANIZER', font=(self.family, 8), fg='#8FA4C3', bg=NAVY).pack(anchor='w', padx=24, pady=(0, 32))
         self.nav_buttons = []
         for index, title in enumerate(('파일 정리', '파일 검색', '작업 기록', '버전 관리')):

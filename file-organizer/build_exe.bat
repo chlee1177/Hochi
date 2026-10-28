@@ -4,9 +4,9 @@ py -3 -m venv .venv
 if errorlevel 1 goto failed
 .venv\Scripts\python.exe -m pip install -r requirements.txt pyinstaller==6.16.0
 if errorlevel 1 goto failed
-.venv\Scripts\python.exe -m PyInstaller --noconfirm --clean --onefile --windowed --name HochiFileOrganizer --paths .. app.py
+.venv\Scripts\python.exe -m PyInstaller --noconfirm --clean --onefile --windowed --name FileNest --paths .. app.py
 if errorlevel 1 goto failed
-echo Build complete: dist\HochiFileOrganizer.exe
+echo Build complete: dist\FileNest.exe
 pause
 exit /b 0
 :failed

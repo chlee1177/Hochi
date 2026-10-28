@@ -1,11 +1,11 @@
-# Hochi — 세 가지 프로젝트
+# 세 가지 프로젝트
 
 요청한 세 프로젝트의 실행 가능한 초기 버전입니다. 하나의 저장소 안에서 폴더별로 관리합니다.
 
 | 프로젝트 | 플랫폼 | 시작점 |
 | --- | --- | --- |
 | 이미지 인식·요약 | Kotlin 안드로이드 앱 + Python 분석 서버 | `image-summary/android`를 Android Studio에서 열기 |
-| AI 파일 정리 | Python Windows 데스크톱 앱 (Tkinter) | `file-organizer/start.bat` 실행 |
+| FileNest 파일 정리 | Python Windows 데스크톱 앱 (Tkinter) | `file-organizer/start.bat` 실행 |
 | 스페이스 머셔너리 | Godot 4.6 기반 2D PC 게임 | `space-mercenary/project.godot`를 Godot에서 열고 F5 실행 |
 
 각 폴더 README에 상세 실행 방법이 있습니다. 이미지 분석에는 AI 키 연결이 필요합니다. 파일 정리는 OpenAI 또는 API 키가 필요 없는 Ollama 로컬 모델을 선택할 수 있습니다. 게임은 키 없이 실행됩니다. 파일 정리는 지정 폴더의 파일명과 지원 내용을 AI로 분석한 뒤 검토한 원본을 분류 폴더로 이동합니다.
