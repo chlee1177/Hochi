@@ -131,11 +131,6 @@ class App(ProjectUI):
                                command=lambda i=index: self.navigate(i))
             button.pack(fill='x', padx=12, pady=3)
             self.nav_buttons.append(button)
-        bottom = tk.Frame(rail, bg=NAVY)
-        bottom.pack(side='bottom', fill='x', padx=22, pady=24)
-        tk.Label(bottom, text='내 파일, 내 선택', font=(self.family, 10, 'bold'), fg='#E2EBF9', bg=NAVY).pack(anchor='w')
-        tk.Label(bottom, text='이동 전 검토하고\n언제든 마지막 정리 복구', justify='left',
-                 font=(self.family, 9), fg='#8FA4C3', bg=NAVY).pack(anchor='w', pady=(8, 0))
 
     def build_review(self, review):
         review.columnconfigure(0, weight=1)

@@ -1,0 +1,18 @@
+test_check_sends_metadata_only (test_local_ai.LocalAITests.test_check_sends_metadata_only) ... ok
+test_cloud_model_and_alias_rejected_before_file_send (test_local_ai.LocalAITests.test_cloud_model_and_alias_rejected_before_file_send) ... ok
+test_image_rejected_for_text_model (test_local_ai.LocalAITests.test_image_rejected_for_text_model) ... ok
+test_incomplete_response_not_used (test_local_ai.LocalAITests.test_incomplete_response_not_used) ... ok
+test_invalid_model_output_cannot_move_files (test_local_ai.LocalAITests.test_invalid_model_output_cannot_move_files) ... ok
+test_local_engine_privacy_move_search_and_undo (test_local_ai.LocalAITests.test_local_engine_privacy_move_search_and_undo) ... ok
+test_local_protocol_no_key_schema_and_no_cloud_fallback (test_local_ai.LocalAITests.test_local_protocol_no_key_schema_and_no_cloud_fallback) ... ok
+test_loopback_only (test_local_ai.LocalAITests.test_loopback_only) ... ok
+test_missing_local_metadata_rejected (test_local_ai.LocalAITests.test_missing_local_metadata_rejected) ... ok
+test_missing_model_actionable_without_private_error_body (test_local_ai.LocalAITests.test_missing_model_actionable_without_private_error_body) ... ok
+test_redirect_cannot_send_content_elsewhere (test_local_ai.LocalAITests.test_redirect_cannot_send_content_elsewhere) ... ok
+test_timeout_readable (test_local_ai.LocalAITests.test_timeout_readable) ... ok
+test_vision_payload_and_non_thinking_model (test_local_ai.LocalAITests.test_vision_payload_and_non_thinking_model) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 0.279s
+
+OK

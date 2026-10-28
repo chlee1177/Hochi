@@ -5,7 +5,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
-DEFAULT_MODEL = 'qwen3:14b'
+DEFAULT_MODEL = 'qwen3.5:27b'
 DEFAULT_URL = 'http://127.0.0.1:11434'
 RESPONSE_LIMIT = 4 * 1024 * 1024
 CLASSIFICATION_SCHEMA = {
@@ -40,7 +40,7 @@ class OllamaClient:
         self.base_url = f'http://{host}:{port}'
         self.model = model.strip()
         if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}', self.model):
-            raise ValueError('Ollama 모델 이름을 입력하세요. 예: qwen3:14b')
+            raise ValueError('Ollama 모델 이름을 입력하세요. 예: qwen3.5:27b')
         if 'cloud' in self.model.lower():
             raise ValueError('로컬 모드에서는 cloud 모델을 사용할 수 없습니다. 다운로드한 모델을 선택하세요.')
         # Loopback traffic must stay on this machine, even with a system HTTP proxy.

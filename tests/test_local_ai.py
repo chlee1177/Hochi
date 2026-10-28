@@ -77,13 +77,13 @@ class LocalAITests(unittest.TestCase):
     def test_check_sends_metadata_only(self):
         with fake_ollama() as server:
             self.assertIn('연결 확인', OllamaClient(server['url']).check())
-            self.assertEqual(server['requests'][0][1], {'model': 'qwen3:14b'})
+            self.assertEqual(server['requests'][0][1], {'model': 'qwen3.5:27b'})
             self.assertEqual(len(server['requests']), 1)
 
     def test_missing_model_actionable_without_private_error_body(self):
         with fake_ollama() as server:
             server['status'] = 404
-            with self.assertRaisesRegex(ValueError, 'ollama pull qwen3:14b') as error:
+            with self.assertRaisesRegex(ValueError, 'ollama pull qwen3.5:27b') as error:
                 OllamaClient(server['url']).check()
             self.assertNotIn('private-server', str(error.exception))
 
