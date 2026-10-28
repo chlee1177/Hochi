@@ -268,11 +268,13 @@ with tempfile.TemporaryDirectory() as directory:
           patch('app.messagebox.showerror') as errors):
         app.open_project_settings()
         root.update()
-        dialog = root.grab_current()
-        entry = next(w for w in widgets(dialog) if isinstance(w, ttk.Entry))
-        entry.delete(0, 'end')
-        entry.insert(0, str(output))
-        next(w for w in widgets(dialog) if isinstance(w, ttk.Button) and w.cget('text') == '저장').invoke()
+        assert app.tabs.index(app.tabs.select()) == 4
+        assert root.grab_current() is None
+        assert not app.settings_button.winfo_ismapped()
+        app.project_output_draft.set(str(output))
+        app.project_save_button.invoke()
+        assert app.engine is None and not app.monitor_enabled.get()
+        app.navigate(0)
         assert app.output_folder.get() == str(output)
         assert (source / '.hochi-project.json').exists()
         app.open_rules()
@@ -400,3 +402,77 @@ with tempfile.TemporaryDirectory() as directory:
         errors.assert_not_called()
     app.close()
     print('PASS GUI v6.2: unsupported files continue, type/reason display, skipped filter, open location, manual skip, supported-only move and undo')
+
+# v6.3: project setup is independent of AI and explicit monitoring actions.
+with tempfile.TemporaryDirectory() as directory:
+    root = tk.Tk()
+    app = App(root)
+    app.key.set('')
+    app.provider.set('openai')
+    root.update()
+    base = Path(directory)
+    source = base / '작업'
+    source.mkdir()
+    note = source / '강의노트.txt'
+    note.write_text('물리학 수업', encoding='utf-8')
+    output = base / '보관'
+    with (patch('folder_organizer.ai_text', return_value=fake_ai) as ai,
+          patch('local_ai.OllamaClient._request', side_effect=AssertionError('Settings must not call AI')),
+          patch('app.messagebox.askyesno', return_value=True),
+          patch('app.messagebox.showerror') as errors):
+        app.nav_buttons[4].invoke()
+        root.update()
+        assert app.tabs.index(app.tabs.select()) == 4
+        assert root.grab_current() is None
+        assert not app.settings_button.winfo_ismapped()
+        errors.assert_not_called()
+        app.folder.set(str(source))
+        app.project_output_draft.set(str(output))
+        app.project_days_draft.set('3')
+        app.project_save_button.invoke()
+        assert app.output_folder.get() == str(output)
+        assert app.quiet_days.get() == 3
+        assert not app.busy and app.engine is None and not app.monitor_enabled.get()
+        assert note.exists()
+        ai.assert_not_called()
+        capture(root, 'independent-settings')
+        root.geometry('1100x800')
+        root.update()
+        assert app.project_save_button.winfo_rooty() + app.project_save_button.winfo_height() <= root.winfo_rooty() + root.winfo_height()
+        capture(root, 'settings-compact')
+        app.project_output_draft.set(str(base / 'unsaved'))
+        app.project_days_draft.set('20')
+        app.reset_project_draft()
+        assert app.project_output_draft.get() == str(output)
+        assert app.project_days_draft.get() == '3'
+        app.navigate(3)
+        app.monitor_enabled.set(True)
+        app.toggle_monitor()
+        wait(root, app)
+        ai.assert_not_called()
+        assert app.monitor_enabled.get()
+        app.monitor_enabled.set(False)
+        app.toggle_monitor()
+        app.navigate(0)
+        root.update()
+        assert app.settings_button.winfo_ismapped()
+        app.key.set('mock-only')
+        app.start(False)
+        wait(root, app)
+        plan_id = app.engine.plan['id']
+        app.navigate(4)
+        app.project_days_draft.set('5')
+        app.project_save_button.invoke()
+        assert app.engine.plan['id'] == plan_id, 'Changing quiet period must preserve the AI proposal'
+        assert note.exists()
+        app.project_save_button.invoke()
+        assert app.engine.plan['id'] == plan_id, 'Saving unchanged settings must preserve the AI proposal'
+        app.project_output_draft.set(str(base / '새보관'))
+        app.project_save_button.invoke()
+        assert app.engine is None and not app.monitor_enabled.get()
+        assert not app.view_items
+        assert note.exists()
+        assert ai.call_count == 1
+        errors.assert_not_called()
+    app.close()
+    print('PASS GUI v6.3: independent setup with no AI/key, saved drafts, explicit monitor start, minimum layout, preserve plan for period/unchanged saves, invalidate only on output change')

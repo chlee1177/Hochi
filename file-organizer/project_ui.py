@@ -18,6 +18,9 @@ class ProjectUI:
         self.destination_hint = tk.StringVar(value='저장 위치: 작업 폴더/AI_정리')
         self.include_previous = tk.BooleanVar(value=False)
         self.version_items = {}
+        self.project_output_draft = tk.StringVar()
+        self.project_days_draft = tk.StringVar(value='7')
+        self.project_notice = tk.StringVar(value='상단에서 작업 폴더를 선택한 뒤 설정을 저장하세요.')
 
     def project_changed(self, *_):
         self.monitor_enabled.set(False)
@@ -34,57 +37,82 @@ class ProjectUI:
         except (ValueError, OSError) as error:
             self.monitor_hint.set('설정 읽기 실패: ' + str(error))
         self.destination_hint.set('저장 위치: ' + (self.output_folder.get() or '작업 폴더/' + OUTPUT_NAME))
+        self.reset_project_draft()
 
     def open_project_settings(self):
+        self.navigate(4)
+
+    def reset_project_draft(self):
+        source = self.folder.get().strip()
+        self.project_output_draft.set(self.output_folder.get() or (str(Path(source).expanduser() / OUTPUT_NAME) if source else ''))
+        self.project_days_draft.set(str(self.quiet_days.get()))
+        self.project_notice.set('설정 저장 후 적용됩니다. AI 분석과 폴더 감시는 각각 별도로 시작하세요.')
+
+    def build_project_settings(self, panel):
+        panel.columnconfigure(0, weight=1)
+        frame = ttk.Frame(panel, style='Card.TFrame', padding=20)
+        frame.grid(row=0, column=0, sticky='ew')
+        frame.columnconfigure(0, weight=1)
+        ttk.Label(frame, text='저장 위치', style='Section.TLabel').grid(row=0, column=0, sticky='w')
+        ttk.Label(frame, text='분류한 파일을 저장할 디스크와 폴더를 지정하세요.', style='CardMuted.TLabel').grid(row=1, column=0, sticky='w', pady=(4, 10))
+        output_entry = ttk.Entry(frame, textvariable=self.project_output_draft)
+        output_entry.grid(row=2, column=0, sticky='ew', padx=(0, 8))
+        def browse():
+            selected = filedialog.askdirectory(parent=self.root, title='저장할 디스크와 폴더 선택')
+            if selected:
+                self.project_output_draft.set(selected)
+        browse_button = ttk.Button(frame, text='저장 폴더 선택', command=browse)
+        browse_button.grid(row=2, column=1)
+        ttk.Label(frame, text='최종본 후보 대기 기간', style='Section.TLabel').grid(row=3, column=0, sticky='w', pady=(18, 8))
+        period = ttk.Frame(frame, style='Card.TFrame')
+        period.grid(row=4, column=0, sticky='w')
+        days = ttk.Spinbox(period, from_=1, to=365, textvariable=self.project_days_draft, width=8)
+        days.pack(side='left')
+        ttk.Label(period, text='일 동안 변경이 없으면 후보로 표시 (1~365일)', style='CardMuted.TLabel').pack(side='left', padx=10)
+        ttk.Label(frame, text='감시는 버전 관리에서 시작하며 30초마다 파일 변경을 확인합니다.\n'
+                  '저장 위치를 바꿔도 기존 파일과 기록은 이전 위치에 남습니다.',
+                  style='CardMuted.TLabel').grid(row=5, column=0, columnspan=2, sticky='w', pady=(14, 0))
+        actions = ttk.Frame(panel)
+        actions.grid(row=1, column=0, sticky='ew', pady=14)
+        self.project_save_button = ttk.Button(actions, text='설정 저장', style='Primary.TButton', command=self.save_project_settings)
+        self.project_save_button.pack(side='right')
+        reset = ttk.Button(actions, text='변경 취소', command=self.reset_project_draft)
+        reset.pack(side='right', padx=8)
+        self.controls += [output_entry, browse_button, days, self.project_save_button, reset]
+        ttk.Label(panel, textvariable=self.project_notice, style='Muted.TLabel', wraplength=850).grid(row=2, column=0, sticky='w')
+
+    def save_project_settings(self):
         if self.busy:
             return
         try:
-            engine = self.new_engine()
-        except (ValueError, OSError) as error:
-            messagebox.showerror('설정 불가', str(error))
-            return
-        dialog = tk.Toplevel(self.root)
-        dialog.title('저장 위치와 감시 설정')
-        dialog.transient(self.root)
-        dialog.grab_set()
-        frame = ttk.Frame(dialog, padding=20)
-        frame.pack(fill='both', expand=True)
-        output = tk.StringVar(value=str(engine.output))
-        days = tk.StringVar(value=str(self.quiet_days.get()))
-        ttk.Label(frame, text='분류한 파일을 저장할 폴더', style='Section.TLabel').pack(anchor='w')
-        ttk.Entry(frame, textvariable=output, width=68).pack(fill='x', pady=8)
-        def browse():
-            selected = filedialog.askdirectory(parent=dialog, title='저장할 디스크와 폴더 선택')
-            if selected:
-                output.set(selected)
-        ttk.Button(frame, text='저장 폴더 선택', command=browse).pack(anchor='e')
-        ttk.Label(frame, text='최종본 후보 대기 기간 (1~365일)').pack(anchor='w', pady=(14, 6))
-        ttk.Spinbox(frame, from_=1, to=365, textvariable=days, width=8).pack(anchor='w')
-        ttk.Label(frame, text='감시를 시작한 뒤 변경이 없는 기간을 기준으로 후보를 표시합니다.\n'
-                  '실제로 열거나 제출한 파일을 자동 판별하지 않습니다.\n'
-                  '저장 위치를 바꿔도 기존 파일과 기록은 이전 위치에 남습니다.',
-                  style='Muted.TLabel').pack(anchor='w', pady=14)
-        def save():
-            try:
-                if not output.get().strip():
-                    raise ValueError('저장할 폴더를 지정하세요.')
-                updated = FolderOrganizer(engine.root, output=output.get().strip())
-                save_project(updated, days.get())
+            source = self.folder.get().strip()
+            if not source:
+                raise ValueError('상단에서 작업 폴더를 먼저 선택하세요.')
+            output = self.project_output_draft.get().strip()
+            if not output:
+                raise ValueError('저장할 폴더를 지정하세요.')
+            updated = FolderOrganizer(source, output=output)
+            previous_output = Path(self.output_folder.get()).expanduser().absolute() if self.output_folder.get() else updated.root / OUTPUT_NAME
+            output_changed = updated.output != previous_output
+            had_plan = bool(self.engine and self.engine.plan)
+            save_project(updated, self.project_days_draft.get())
+            self.quiet_days.set(int(self.project_days_draft.get()))
+            if output_changed:
                 self.monitor_enabled.set(False)
                 self.output_folder.set(str(updated.output))
-                self.quiet_days.set(int(days.get()))
-                self.destination_hint.set('저장 위치: ' + str(updated.output))
-                self.invalidate()
                 self.version_table.delete(*self.version_table.get_children())
                 self.version_items.clear()
-                self.monitor_hint.set('설정 저장 완료 · 감시를 다시 시작하세요.')
-                dialog.destroy()
-            except (ValueError, OSError) as error:
-                messagebox.showerror('저장 실패', str(error), parent=dialog)
-        actions = ttk.Frame(frame)
-        actions.pack(fill='x')
-        ttk.Button(actions, text='저장', style='Primary.TButton', command=save).pack(side='right')
-        ttk.Button(actions, text='취소', command=dialog.destroy).pack(side='right', padx=8)
+                self.monitor_hint.set('저장 위치 변경 · 버전 관리에서 감시를 다시 시작하세요.')
+            self.destination_hint.set('저장 위치: ' + str(updated.output))
+            self.reset_project_draft()
+            message = '저장 완료 · AI 분석은 파일 정리, 감시는 버전 관리에서 시작하세요.'
+            if output_changed and had_plan:
+                message += ' 저장 위치가 바뀌어 기존 분류 계획은 다시 분석해야 합니다.'
+            self.project_notice.set(message)
+            self.status.set('저장·감시 설정 저장 완료')
+        except (ValueError, OSError) as error:
+            self.project_notice.set('저장 실패: ' + str(error))
+            messagebox.showerror('설정 저장 실패', str(error))
 
     def open_rules(self):
         if self.busy:

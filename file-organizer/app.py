@@ -62,7 +62,7 @@ class App(ProjectUI):
         header.columnconfigure(0, weight=1)
         ttk.Label(header, textvariable=self.page_title, style='Title.TLabel').grid(row=0, column=0, sticky='w')
         ttk.Label(header, textvariable=self.page_description, style='Muted.TLabel').grid(row=1, column=0, sticky='w', pady=(4, 0))
-        self.settings_button = ttk.Button(header, text='분석 설정', command=self.open_settings)
+        self.settings_button = ttk.Button(header, text='AI 분석 설정', command=self.open_settings)
         self.settings_button.grid(row=0, column=1, rowspan=2, sticky='e')
         self.controls.append(self.settings_button)
 
@@ -70,26 +70,26 @@ class App(ProjectUI):
         location.grid(row=1, column=0, sticky='ew', pady=(0, 14))
         location.columnconfigure(0, weight=1)
         ttk.Label(location, text='작업 폴더', style='Section.TLabel').grid(row=0, column=0, sticky='w', pady=(0, 8))
-        ttk.Label(location, textvariable=self.connection, style='CardMuted.TLabel').grid(row=0, column=1, sticky='e')
+        self.connection_label = ttk.Label(location, textvariable=self.connection, style='CardMuted.TLabel')
+        self.connection_label.grid(row=0, column=1, sticky='e')
         self.folder_entry = ttk.Entry(location, textvariable=self.folder)
         self.folder_entry.grid(row=1, column=0, sticky='ew', padx=(0, 10))
         self.browse_button = ttk.Button(location, text='폴더 선택', command=self.choose_folder)
         self.browse_button.grid(row=1, column=1)
         ttk.Label(location, textvariable=self.destination_hint, style='CardMuted.TLabel', wraplength=650).grid(row=2, column=0, sticky='w', pady=(8, 0))
-        project_button = ttk.Button(location, text='저장·감시 설정', command=self.open_project_settings)
-        project_button.grid(row=2, column=1, pady=(8, 0))
-        self.controls += [self.folder_entry, self.browse_button, project_button]
+        self.controls += [self.folder_entry, self.browse_button]
 
         self.tabs = ttk.Notebook(frame, style='Workspace.TNotebook')
         self.tabs.grid(row=2, column=0, sticky='nsew')
-        review, library, history, versions = (ttk.Frame(self.tabs) for _ in range(4))
-        for panel, title in [(review, '파일 정리'), (library, '파일 검색'), (history, '작업 기록'), (versions, '버전 관리')]:
+        review, library, history, versions, project = (ttk.Frame(self.tabs) for _ in range(5))
+        for panel, title in [(review, '파일 정리'), (library, '파일 검색'), (history, '작업 기록'), (versions, '버전 관리'), (project, '저장·감시 설정')]:
             self.tabs.add(panel, text=title)
         self.tabs.bind('<<NotebookTabChanged>>', self.page_changed)
         self.build_review(review)
         self.build_library(library)
         self.build_history(history)
         self.build_versions(versions)
+        self.build_project_settings(project)
 
         footer = ttk.Frame(frame)
         footer.grid(row=3, column=0, sticky='ew', pady=(12, 0))
@@ -124,7 +124,7 @@ class App(ProjectUI):
         tk.Label(rail, text='FileNest', font=(self.family, 22, 'bold'), fg='white', bg=NAVY).pack(anchor='w', padx=22, pady=(25, 0))
         tk.Label(rail, text='AI FILE ORGANIZER', font=(self.family, 8), fg='#8FA4C3', bg=NAVY).pack(anchor='w', padx=24, pady=(0, 32))
         self.nav_buttons = []
-        for index, title in enumerate(('파일 정리', '파일 검색', '작업 기록', '버전 관리')):
+        for index, title in enumerate(('파일 정리', '파일 검색', '작업 기록', '버전 관리', '저장·감시 설정')):
             button = tk.Button(rail, text=title, anchor='w', padx=18, pady=12, relief='flat', bd=0,
                                bg=NAVY, fg='#B9C8DF', activebackground='#253D60', activeforeground='white',
                                font=(self.family, 11), cursor='hand2', highlightbackground=NAVY, highlightcolor=BLUE,
@@ -262,8 +262,10 @@ class App(ProjectUI):
 
     def page_changed(self, _=None):
         index = self.tabs.index(self.tabs.select())
-        self.page_title.set(('파일 정리', '파일 검색', '작업 기록', '버전 관리')[index])
-        self.page_description.set(('흩어진 파일을, 다시 찾기 좋은 구조로.', '정리한 자료를 내 PC에서 빠르게 찾아보세요.', '정리의 과정과 결과를 한눈에 확인하세요.', '변경을 살펴보고, 사용할 최종본을 직접 지정하세요.')[index])
+        self.page_title.set(('파일 정리', '파일 검색', '작업 기록', '버전 관리', '저장·감시 설정')[index])
+        self.page_description.set(('흩어진 파일을, 다시 찾기 좋은 구조로.', '정리한 자료를 내 PC에서 빠르게 찾아보세요.', '정리의 과정과 결과를 한눈에 확인하세요.', '변경을 살펴보고, 사용할 최종본을 직접 지정하세요.', 'AI 연결 없이 저장 위치와 최종본 후보 기준을 설정하세요.')[index])
+        for widget in (self.settings_button, self.connection_label):
+            widget.grid_remove() if index == 4 else widget.grid()
         for i, button in enumerate(self.nav_buttons):
             button.configure(bg='#294977' if i == index else NAVY, fg='white' if i == index else '#B9C8DF')
 
