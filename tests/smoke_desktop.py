@@ -351,3 +351,52 @@ with tempfile.TemporaryDirectory() as directory:
         errors.assert_not_called()
     app.close()
     print('PASS GUI v6: external destination persistence, slash/backslash rules, remembered edit, monitoring, explicit grouping/final, previous-version search, move/undo and source-switch reset')
+
+# v6.2: an unsupported file must not discard the other files' analysis.
+with tempfile.TemporaryDirectory() as directory:
+    root = tk.Tk()
+    app = App(root)
+    root.update()
+    folder = Path(directory)
+    for name in ('a.txt', 'b.doc', 'c.docx', 'd.txt'):
+        (folder / name).write_text('example', encoding='utf-8')
+    app.folder.set(str(folder))
+    app.provider.set('openai')
+    app.key.set('mock-only')
+    with (patch('folder_organizer.ai_text', return_value=fake_ai) as ai,
+          patch('app.messagebox.askyesno', return_value=True),
+          patch('app.messagebox.showerror') as errors):
+        app.start(False)
+        wait(root, app)
+        assert ai.call_count == 2
+        assert '건너뜀 2개' in app.status.get()
+        assert len(app.view_items) == 4
+        app.filter.set('건너뜀')
+        app.render()
+        assert len(app.table.get_children()) == 2
+        app.table.selection_set(app.rows['b.doc'])
+        app.show_details()
+        detail = app.details.get('1.0', 'end')
+        assert 'b.doc' in detail and 'Word 구형 문서' in detail and '내용 분석 불가' in detail
+        assert not app.external_button.winfo_ismapped()
+        with patch.object(app, 'open_path') as opened:
+            app.open_selected_location()
+            opened.assert_called_once_with(folder)
+        capture(root, 'skipped')
+        app.filter.set('전체')
+        app.render()
+        app.table.selection_set(app.rows['a.txt'])
+        app.skip_selected()
+        assert not app.plan_item('a.txt')['selected']
+        assert app.plan_item('d.txt')['selected']
+        app.apply()
+        wait(root, app)
+        assert (folder / 'a.txt').exists()
+        assert (folder / 'b.doc').exists() and (folder / 'c.docx').exists()
+        assert not (folder / 'd.txt').exists()
+        app.undo()
+        wait(root, app)
+        assert (folder / 'd.txt').exists()
+        errors.assert_not_called()
+    app.close()
+    print('PASS GUI v6.2: unsupported files continue, type/reason display, skipped filter, open location, manual skip, supported-only move and undo')

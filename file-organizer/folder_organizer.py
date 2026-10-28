@@ -20,12 +20,25 @@ from runtime import ai_text
 from catalog import Catalog
 from classification import folder_path, name_component, normalized_result
 from privacy import screen_content, screen_name
+from analysis_errors import UnsupportedFile
 
 CATEGORIES = ('업무', '학습', '금융', '개인', '이미지', '오디오', '영상', '개발', '압축', '기타')
 OUTPUT_NAME = 'AI_정리'
 TEXT_LIMIT = 12000
 TEXT_EXTENSIONS = set('txt md csv tsv log json yaml yml xml html css py js ts jsx tsx java c cpp h rs go sh sql rtf'.split())
+TEXT_FILENAMES = {'.gitignore', '.gitattributes', '.editorconfig', 'readme', 'license', 'makefile', 'dockerfile'}
 IMAGE_MIMES = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif'}
+
+
+def file_type(path):
+    suffix = path.suffix.lower()
+    names = {'.doc': 'Word 구형 문서', '.docx': 'Word 문서', '.pdf': 'PDF 문서',
+             '.hwp': '한글 문서', '.hwpx': '한글 문서', '.ppt': 'PowerPoint 문서',
+             '.pptx': 'PowerPoint 문서', '.xls': 'Excel 문서', '.xlsx': 'Excel 문서',
+             '.zip': 'ZIP 압축 파일', '.7z': '7z 압축 파일', '.mp3': '오디오', '.mp4': '영상'}
+    kind = names.get(suffix, '이미지' if suffix in IMAGE_MIMES else
+                     '텍스트/코드' if suffix.lstrip('.') in TEXT_EXTENSIONS or path.name.lower() in TEXT_FILENAMES else '알 수 없는 형식')
+    return f'{kind} ({suffix or "확장자 없음"} · 확장자 기준)'
 
 
 class Cancelled(ValueError):
@@ -62,7 +75,7 @@ def evidence(path, use_content=True):
     if not use_content:
         return [], fallback
     suffix = path.suffix.lower()
-    if suffix.lstrip('.') in TEXT_EXTENSIONS:
+    if suffix.lstrip('.') in TEXT_EXTENSIONS or path.name.lower() in TEXT_FILENAMES:
         with path.open('rb') as stream:
             raw = stream.read(64 * 1024)
         text = None
@@ -88,7 +101,7 @@ def evidence(path, use_content=True):
             if not text.strip():
                 return [], fallback + ' (텍스트 없음)'
             return [{'type': 'input_text', 'text': text[:TEXT_LIMIT]}], 'DOCX 텍스트 앞부분 분석 (최대 12,000자)'
-        except (zipfile.BadZipFile, KeyError, ElementTree.ParseError):
+        except (zipfile.BadZipFile, KeyError, ElementTree.ParseError, RuntimeError, NotImplementedError):
             return [], fallback + ' (DOCX 텍스트 추출 불가)'
     if suffix == '.pdf':
         try:
@@ -192,9 +205,11 @@ class FolderOrganizer:
         return Catalog(path)
 
     def _record(self, item):
-        return {key: item[key] for key in ('id', 'relative', 'current_path', 'sha256', 'snapshot',
+        record = {key: item[key] for key in ('id', 'relative', 'current_path', 'sha256', 'snapshot',
                 'category', 'folder', 'summary', 'tags', 'reason', 'scope', 'confidence',
                 'sensitive', 'review_required', 'review_reasons', 'status', 'updated_at')}
+        record.update({key: item[key] for key in ('file_type', 'analysis_skipped', 'skip_reason') if key in item})
+        return record
 
     def _save_plan(self):
         with self._locked():
@@ -257,8 +272,11 @@ class FolderOrganizer:
                       'sha256': checksum, 'current_path': item['relative'], 'new_name': path.name,
                       'updated_at': datetime.now(timezone.utc).isoformat(), 'sensitive': bool(reasons),
                       'review_reasons': list(dict.fromkeys(reasons)), 'approved_move': False,
-                      'external_approved': allow_external}
-        if reasons and not allow_external:
+                      'external_approved': allow_external, 'file_type': file_type(path),
+                      'analysis_skipped': False, 'skip_reason': ''}
+        if self.use_content and not parts and scope != '로컬 사전 검사':
+            self._mark_skipped(classified, scope.replace('파일명만 분석', '내용 분석 불가'), scope)
+        elif reasons and not allow_external:
             classified.update(category='검토필요', folder='검토필요', reason='; '.join(reasons),
                               scope='외부 전송 안 함 · 로컬 검사', summary='', tags=[], confidence=0.0,
                               review_required=True, selected=False, status='review')
@@ -278,6 +296,12 @@ class FolderOrganizer:
                             '상위 분류 참고: ' + ', '.join(CATEGORIES))
             try:
                 result = normalized_result(json.loads(self.ai(request, instructions)))
+            except UnsupportedFile as error:
+                self._mark_skipped(classified, str(error), scope)
+                check_cancel(cancel)
+                if snapshot(path) != item['snapshot'] or digest(path) != checksum:
+                    raise ValueError(f'분석 중 파일이 바뀌었습니다: {item["relative"]}')
+                return classified
             except json.JSONDecodeError:
                 raise ValueError(f'AI 응답이 JSON이 아닙니다: {path.name}') from None
             output_flags = screen_content([{'type': 'input_text', 'text': json.dumps(result, ensure_ascii=False)}], '')
@@ -298,6 +322,34 @@ class FolderOrganizer:
         if snapshot(path) != item['snapshot'] or digest(path) != checksum:
             raise ValueError(f'분석 중 파일이 바뀌었습니다: {item["relative"]}')
         return classified
+
+    def _mark_skipped(self, item, reason, scope):
+        item.update(category='검토필요', folder='검토필요', reason=reason,
+                    scope=scope, summary='', tags=['분석 건너뜀'], confidence=0.0,
+                    review_required=True, selected=False, approved_move=False,
+                    status='skipped', analysis_skipped=True, skip_reason=reason)
+        item['review_reasons'] = list(dict.fromkeys([*item.get('review_reasons', []), reason]))
+
+    def skip_items(self, relatives):
+        if not self.plan:
+            raise ValueError('먼저 폴더를 분석하세요.')
+        chosen = set(relatives)
+        items = [item for item in self.plan['items'] if item['relative'] in chosen]
+        if not chosen or len(items) != len(chosen):
+            raise ValueError('현재 계획에서 건너뛸 파일을 선택하세요.')
+        replacements = []
+        for item in items:
+            changed = {**item, 'selected': False, 'approved_move': False, 'review_required': True,
+                       'analysis_skipped': True, 'skip_reason': item.get('skip_reason') or '사용자가 이번 정리에서 제외함',
+                       'status': 'skipped', 'updated_at': datetime.now(timezone.utc).isoformat()}
+            replacements.append(changed)
+        with self._locked():
+            self._catalog().upsert([self._record(i) for i in replacements],
+                                   event={'kind': '건너뛰기', 'detail': {'files': len(items)}})
+        for item, changed in zip(items, replacements):
+            item.update(changed)
+        self.plan['id'] = uuid.uuid4().hex
+        return items
 
     def analyze(self, progress=None, cancel=None):
         self.plan = None
@@ -334,6 +386,8 @@ class FolderOrganizer:
         replacement = {**item, 'folder': destination, 'category': destination.split('/')[0],
                        'new_name': filename, 'selected': bool(selected), 'approved_move': approved,
                        'updated_at': datetime.now(timezone.utc).isoformat()}
+        if selected and approved:
+            replacement.update(analysis_skipped=False, status='review')
         with self._locked():
             self._catalog().upsert([self._record(replacement)], event={'kind': '분류 수정', 'detail': {
                 'file': relative, 'folder': destination, 'new_name': filename, 'selected': bool(selected), 'approved_move': approved}})
@@ -351,7 +405,8 @@ class FolderOrganizer:
             raise ValueError('현재 계획에 없는 파일입니다.')
         item = self._analyze_file(self.plan['items'][index], allow_external=True, cancel=cancel)
         # Permission to send does not grant permission to move a held file.
-        item.update(review_required=True, selected=False, approved_move=False, status='review')
+        item.update(review_required=True, selected=False, approved_move=False,
+                    status='skipped' if item.get('analysis_skipped') else 'review')
         with self._locked():
             self._catalog().upsert([self._record(item)], event={'kind': '개별 AI 전송 승인', 'detail': {'file': relative}})
         self.plan['items'][index] = item

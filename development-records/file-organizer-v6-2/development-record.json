@@ -1,0 +1,43 @@
+{
+  "record": "011",
+  "date": "2026-10-28",
+  "timezone": "Asia/Seoul",
+  "version": "v6.2",
+  "baseline_commit": "d21c5c37dc438686b95a8b81e66965922bacc0c8",
+  "user_request": "AI 분석시 지원이 안되는 파일은 중단시키지말고 무슨 파일인지 확인 후 건너뛸 수 있게 해줘.",
+  "changes": [
+    "내용 분석 모드에서 미지원 형식, 추출 불가, 빈 내용과 분석 크기 초과는 해당 파일만 건너뛰고 계속 분석한다.",
+    "파일명, 확장자 기준 형식, 건너뛴 이유와 원래 위치 유지 상태를 표시한다. 건너뜀 필터와 선택 파일 위치 열기를 추가했다.",
+    "선택 파일 건너뛰기 메뉴로 이번 이동에서 직접 제외하며, 이동하려면 별도 승인해야 한다.",
+    "Ollama 이미지 미지원과 명시적 이미지 형식/디코딩 HTTP 오류를 UnsupportedFile로 구분한다. 일반 연결/인증/설치/요청 한도/GPU 메모리/잘못된 JSON·분류 경로/원본 변경/취소 오류는 계속 전파한다.",
+    "파일명 분석 모드의 명시적 선택과 개인정보 개별 검토 원칙은 유지한다."
+  ],
+  "development_events": [
+    "초기 검사에서 빈 BIN 파일과 큰 BIN 파일을 내용 분석 모드에서 이름으로 이동하던 기존 테스트 2개가 실패했다. 변경된 동작에 맞춰 빈 BIN은 원본 유지, 큰 BIN 이동 한도 검사는 파일명 모드로 구분했다.",
+    "새 테스트의 잘못된 분류 경로 사례가 JSON 유니코드 이스케이프 때문에 실제 잘못된 경로를 만들지 않았음을 발견하고 JSON 객체로 구성하도록 수정했다.",
+    "전체 회귀 검사에서 .gitignore가 확장자 없는 미지원 파일로 처리되던 문제를 발견하고 알려진 텍스트 파일명을 내용 분석 대상으로 추가했다.",
+    "신규 10개를 포함해 전체 105개 단위 테스트 및 기존/신규 GUI 통합 테스트를 통과했다. 상세 설명을 줄여 파일 형식과 건너뛴 이유가 먼저 보이도록 다듬었다."
+  ],
+  "validation": {
+    "unit_tests": 105,
+    "new_tests": 10,
+    "gui": "PASS: existing flows plus mixed unsupported/corrupt files, skipped filter, type/reason, location, manual skip, partial move and undo",
+    "actual_model_inference": false,
+    "windows_execution": false
+  },
+  "limitations": [
+    "확장자 기준 형식 표시는 실제 내용을 확정하지 않는다.",
+    "실제 Ollama/OpenAI 추론은 수행하지 않았다. 명시적인 미지원 입력 오류와 모의 HTTP 응답으로 검증했다.",
+    "OpenAI 공통 연결의 일반 HTTP 오류와 알 수 없는 서버 오류는 파일 미지원으로 간주하지 않고 중단한다."
+  ],
+  "changed_files_sha256": {
+    "file-organizer/README.md": "b11c25507be2c644c200c66e018a65117001438179e0c22fd9de27ac7a3978b7",
+    "file-organizer/app.py": "1b76dcbe2055b0bdcebd4913ccd640b3ea43aef0bfb50211275e633e1752ab09",
+    "file-organizer/folder_organizer.py": "69b038e4e2492886cc1028e2a66611df42794a143d32bcfd8540c6bd8a1fd1df",
+    "file-organizer/local_ai.py": "8b561023f42d9f461a49afd96a5e98fccf85b5c21af5d00706d1d35d42ae1721",
+    "file-organizer/analysis_errors.py": "7cc30871f8910a93cd98891389eb9e5ffadaea6b3bd83867753dc2ee63e992aa",
+    "tests/test_skip_analysis.py": "5483798fb2149e15324b37d0ad19af110dc30f63c42f40ddc5fa04b163873d0d",
+    "tests/test_folder_organizer.py": "e09b0954097bd9a674f604882d7b1c286b2931768f73c38c49f67350f394cb06",
+    "tests/smoke_desktop.py": "7817512bfef38f56f16949f0ad7e88226e8620f8c000d16a4e417e9193a592b4"
+  }
+}

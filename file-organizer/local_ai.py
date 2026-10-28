@@ -4,6 +4,7 @@ import re
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
+from analysis_errors import UnsupportedFile
 
 DEFAULT_MODEL = 'qwen3.5:27b'
 DEFAULT_URL = 'http://127.0.0.1:11434'
@@ -58,6 +59,18 @@ class OllamaClient:
                 raise ValueError('Ollama 응답이 너무 큽니다. 모델과 서버를 확인하세요.')
             result = json.loads(raw)
         except HTTPError as error:
+            if endpoint == '/api/chat' and error.code in (400, 415, 422, 500):
+                # Only classify explicit input-format errors as skippable. Never
+                # expose server response bodies (which can contain private data).
+                try:
+                    detail = json.loads(error.read(8192)).get('error', '')
+                except (ValueError, OSError, AttributeError):
+                    detail = ''
+                if isinstance(detail, str) and re.search(
+                        r'unsupported (?:image|file|media) (?:format|type)|'
+                        r'(?:image|file): unknown format|unable to decode image|'
+                        r'invalid image (?:format|data)|model does not support images', detail, re.I):
+                    raise UnsupportedFile('AI가 이 파일의 이미지 형식 또는 이미지 입력을 지원하지 않습니다.') from None
             if error.code == 404:
                 raise ValueError(f'모델을 찾을 수 없습니다. PowerShell에서 ollama pull {self.model} 실행 후 다시 확인하세요.') from None
             if error.code in (401, 403):
@@ -93,10 +106,10 @@ class OllamaClient:
                 texts.append(part['text'])
             elif part['type'] == 'input_image':
                 if 'vision' not in self.capabilities:
-                    raise ValueError(f'{self.model}은 이미지 입력을 지원하지 않습니다. 이미지 지원 모델을 선택하거나 내용 분석을 끄고 다시 분석하세요.')
+                    raise UnsupportedFile(f'{self.model}은 이미지 입력을 지원하지 않습니다. 이미지 지원 모델을 선택하거나 내용 분석을 끄고 다시 분석하세요.')
                 url = part['image_url']
                 if not isinstance(url, str) or not re.match(r'^data:image/(png|jpeg|webp|gif);base64,', url):
-                    raise ValueError('로컬 AI에는 파일에서 읽은 이미지 데이터만 전달할 수 있습니다.')
+                    raise UnsupportedFile('로컬 AI에는 파일에서 읽은 이미지 데이터만 전달할 수 있습니다.')
                 images.append(url.split(',', 1)[1])
             else:
                 raise ValueError('지원하지 않는 AI 입력 형식입니다.')

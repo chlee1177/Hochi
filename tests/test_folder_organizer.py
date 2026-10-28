@@ -39,13 +39,14 @@ class FolderTests(unittest.TestCase):
         original = self.write('lecture/notes.txt', '물리학 시험 공부'.encode())
         self.write('empty.bin', b'')
         result = self.apply()
-        self.assertEqual(self.ai.call_count, 2)
+        self.assertEqual(self.ai.call_count, 1)
         sent = [part.get('text', '') for call in self.ai.call_args_list for part in call.args[0]]
         self.assertIn('물리학 시험 공부', sent)
         self.assertFalse(original.exists())
-        self.assertEqual(len(result['moves']), 2)
+        self.assertEqual(len(result['moves']), 1)
+        self.assertTrue(self.engine.plan['items'][0]['analysis_skipped'])
         new = FolderOrganizer(self.root)
-        self.assertEqual(new.undo(), 2)
+        self.assertEqual(new.undo(), 1)
         self.assertEqual(original.read_text(), '물리학 시험 공부')
         self.assertEqual((self.root / 'empty.bin').read_bytes(), b'')
 
@@ -62,6 +63,7 @@ class FolderTests(unittest.TestCase):
         for i in range(51):
             self.write(f'{i:02}.txt')
         large = self.write('large.bin', b'x' * (8 * 1024 * 1024 + 1))
+        self.engine.use_content = False  # Filename-only mode has no content-format restriction.
         result = self.apply()
         self.assertEqual(len(result['moves']), 52)
         self.assertFalse(large.exists())

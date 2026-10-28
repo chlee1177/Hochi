@@ -158,7 +158,7 @@ class App(ProjectUI):
         toolbar = ttk.Frame(table_card, style='Card.TFrame')
         toolbar.grid(row=0, column=0, sticky='ew', pady=(0, 12))
         ttk.Label(toolbar, text='분류 제안', style='Section.TLabel').pack(side='left')
-        combo = ttk.Combobox(toolbar, textvariable=self.filter, values=['전체', '검토 대기', '이동 선택', '이동 완료'], width=11, state='readonly')
+        combo = ttk.Combobox(toolbar, textvariable=self.filter, values=['전체', '검토 대기', '건너뜀', '이동 선택', '이동 완료'], width=11, state='readonly')
         combo.pack(side='right')
         combo.bind('<<ComboboxSelected>>', lambda _: self.render())
         self.controls.append(combo)
@@ -206,6 +206,8 @@ class App(ProjectUI):
         menu.add_command(label='마지막 정리 되돌리기', command=self.undo)
         menu.add_command(label='결과 폴더 열기', command=self.open_folder)
         menu.add_command(label='내 분류 규칙', command=self.open_rules)
+        menu.add_command(label='선택 파일 건너뛰기', command=self.skip_selected)
+        menu.add_command(label='선택 파일 위치 열기', command=self.open_selected_location)
         self.more_button.configure(menu=menu)
         self.more_button.pack(side='left')
         self.controls.append(self.more_button)
@@ -450,15 +452,17 @@ class App(ProjectUI):
         self.table.delete(*self.table.get_children())
         self.rows.clear()
         for relative, item in self.view_items.items():
-            state = item.get('display_state') or ('검토 승인' if item.get('approved_move') else '검토 대기' if item.get('review_required') else '분석 완료')
+            state = item.get('display_state') or ('건너뜀' if item.get('analysis_skipped') else '검토 승인' if item.get('approved_move') else '검토 대기' if item.get('review_required') else '분석 완료')
             if self.filter.get() == '검토 대기' and not (item.get('review_required') and not item.get('approved_move') and state != '이동 완료'):
+                continue
+            if self.filter.get() == '건너뜀' and state != '건너뜀':
                 continue
             if self.filter.get() == '이동 선택' and (not item.get('selected') or state == '이동 완료'):
                 continue
             if self.filter.get() == '이동 완료' and state != '이동 완료':
                 continue
-            destination = item['folder'] + '/' + item['new_name']
-            tag = 'moved' if state == '이동 완료' else 'held' if state == '검토 대기' else 'ready'
+            destination = '원래 위치 유지' if item.get('analysis_skipped') else item['folder'] + '/' + item['new_name']
+            tag = 'moved' if state == '이동 완료' else 'held' if state in ('검토 대기', '건너뜀') else 'ready'
             row = self.table.insert('', 'end', values=('✓' if item['selected'] and state != '이동 완료' else '—',
                        relative, destination, state), tags=(tag,))
             self.rows[relative] = row
@@ -499,7 +503,9 @@ class App(ProjectUI):
             name = item['new_name']
             self.selection_title.set(f'{len(paths)}개 파일 선택' if len(paths) > 1 else name if len(name) <= 32 else name[:29] + '…')
             text = f"요약\n{item.get('summary') or '아직 저장된 요약이 없습니다.'}\n\n태그\n{', '.join(item.get('tags', [])) or '—'}\n\n현재 파일\n{paths[0]}\n\n정리할 위치\n{self.engine.output if self.engine else self.output_folder.get() or OUTPUT_NAME}/{item['folder']}/{name}\n\n분류 이유\n{item['reason']}\n\n분석 범위\n{item['scope']}\n\n검토 사유\n{'; '.join(item.get('review_reasons', [])) or '로컬 규칙에서 감지 없음'}"
-            if item.get('review_required') and not item.get('approved_move'):
+            if item.get('analysis_skipped'):
+                text = f"건너뜀 · 원래 위치 유지\n\n{paths[0]}\n{item.get('file_type', '형식 정보 없음')}\n\n건너뛴 이유\n{item.get('skip_reason', item['reason'])}\n\n필요하면 분류 경로를 직접 지정하고 이동을 승인할 수 있습니다."
+            elif item.get('review_required') and not item.get('approved_move'):
                 text = '검토가 필요해요\n' + '; '.join(item.get('review_reasons', [])) + '\n\n' + text
             pending = {i['relative'] for i in self.engine.plan['items']} if self.engine and self.engine.plan else set()
             if all(path in pending for path in paths):
@@ -511,7 +517,7 @@ class App(ProjectUI):
                     self.toggle_button.pack(fill='x')
                 self.edit_button.state(['!disabled'] if len(paths) == 1 and not self.busy else ['disabled'])
                 self.toggle_button.state(['disabled'] if self.busy else ['!disabled'])
-                if len(paths) == 1 and item.get('review_required'):
+                if len(paths) == 1 and item.get('review_required') and not item.get('analysis_skipped'):
                     self.external_button.configure(text='이 파일의 로컬 분석 허용' if self.provider.get() == 'ollama' else '이 파일의 AI 전송 허용')
                     self.external_button.pack(fill='x', pady=(6, 0))
                     self.external_button.state(['disabled'] if self.busy else ['!disabled'])
@@ -586,7 +592,8 @@ class App(ProjectUI):
         def done(result):
             moved = len(result.get('moves', []))
             pending = len(engine.plan['items']) if engine.plan else 0
-            self.status.set(f'{"자동 정리 완료" if automatic else "분석 완료"} · 이동 {moved}개 · 남은 검토/분석 {pending}개 · 링크/특수 파일 제외 {len(engine.skipped)}개')
+            skipped = sum(i.get('analysis_skipped', False) for i in result.get('items', []))
+            self.status.set(f'{"자동 정리 완료" if automatic else "분석 완료"} · 이동 {moved}개 · 남은 검토/분석 {pending}개 · 건너뜀 {skipped}개 · 링크/특수 파일 제외 {len(engine.skipped)}개')
         self.run(task, done)
 
     def apply(self):
@@ -658,6 +665,31 @@ class App(ProjectUI):
                 messagebox.showerror('수정 실패', str(error), parent=dialog)
         ttk.Button(frame, text='수정 저장', command=save).pack(anchor='e', pady=(10, 0))
 
+    def skip_selected(self):
+        if self.busy:
+            return
+        paths = self.selected_paths()
+        try:
+            if not self.engine or not paths:
+                raise ValueError('목록에서 건너뛸 파일을 선택하세요.')
+            for item in self.engine.skip_items(paths):
+                self.view_items[item['relative']] = dict(item)
+            self.render()
+            self.status.set(f'{len(paths)}개 파일을 이번 정리에서 제외했습니다. 원본은 그대로 유지됩니다.')
+        except (ValueError, OSError) as error:
+            messagebox.showinfo('건너뛰기', str(error))
+
+    def open_selected_location(self):
+        paths = self.selected_paths()
+        if self.busy or len(paths) != 1:
+            return
+        try:
+            item = self.plan_item(paths[0])
+            path = self.engine._safe(self.engine.root / item['relative'], self.engine.root)
+            self.open_path(path.parent)
+        except (ValueError, OSError) as error:
+            messagebox.showinfo('위치 열기', str(error))
+
     def toggle_selected(self):
         if self.busy:
             return
@@ -694,7 +726,7 @@ class App(ProjectUI):
         def done(item):
             self.view_items[item['relative']] = dict(item)
             self.render()
-            self.status.set('개별 AI 분석 완료. 분류를 확인하고 이동 승인 여부를 선택하세요.')
+            self.status.set('이 파일은 건너뛰었습니다. 파일 형식과 이유를 확인하세요.' if item.get('analysis_skipped') else '개별 AI 분석 완료. 분류를 확인하고 이동 승인 여부를 선택하세요.')
         self.run(lambda: engine.analyze_reviewed(paths[0], allow_external=True, cancel=self.cancel_event), done)
 
     def undo(self):
