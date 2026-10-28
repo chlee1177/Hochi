@@ -11,6 +11,7 @@ from tkinter import filedialog, messagebox, ttk
 from folder_organizer import Cancelled, FolderOrganizer, OUTPUT_NAME
 from local_ai import OllamaClient, DEFAULT_MODEL, DEFAULT_URL
 from project_ui import ProjectUI
+from usage_guide import show_guide
 from ui_theme import configure, BG, SURFACE, INK, MUTED, LINE, BLUE, NAVY
 
 
@@ -33,14 +34,14 @@ class App(ProjectUI):
             self.provider.set('ollama')
         self.ollama_url = tk.StringVar(value=os.environ.get('HOCHI_OLLAMA_URL', DEFAULT_URL))
         self.ollama_model = tk.StringVar(value=os.environ.get('HOCHI_OLLAMA_MODEL', DEFAULT_MODEL))
-        self.status = tk.StringVar(value='폴더를 선택하고 AI 분석을 시작하세요.')
+        self.status = tk.StringVar(value='처음에는 원본 폴더와 저장 위치를 정하세요. 오른쪽 위 사용 안내에서도 순서를 볼 수 있어요.')
         self.query = tk.StringVar()
         self.filter = tk.StringVar(value='전체')
         self.library_mode = tk.StringVar(value='파일 검색')
         self.connection = tk.StringVar()
         self.page_title = tk.StringVar(value='파일 정리')
         self.page_description = tk.StringVar(value='흩어진 파일을, 다시 찾기 좋은 구조로.')
-        self.step = tk.StringVar(value='01  폴더 선택    →    02  AI 분석    →    03  검토 후 정리')
+        self.step = tk.StringVar(value='AI 분석은 제안만 만들어요. 확인한 뒤 파일 이동을 누르면 원본이 이동해요.')
         self.selection_title = tk.StringVar(value='파일 미리보기')
         self.library_hint = tk.StringVar(value='파일명·요약·태그로 찾으세요. 검색어는 내 PC에만 머뭅니다.')
         self.metrics = [tk.StringVar(value='0') for _ in range(4)]
@@ -62,19 +63,22 @@ class App(ProjectUI):
         header.columnconfigure(0, weight=1)
         ttk.Label(header, textvariable=self.page_title, style='Title.TLabel').grid(row=0, column=0, sticky='w')
         ttk.Label(header, textvariable=self.page_description, style='Muted.TLabel').grid(row=1, column=0, sticky='w', pady=(4, 0))
-        self.settings_button = ttk.Button(header, text='AI 분석 설정', command=self.open_settings)
+        self.settings_button = ttk.Button(header, text='AI 연결·분석 설정', command=self.open_settings)
         self.settings_button.grid(row=0, column=1, rowspan=2, sticky='e')
         self.controls.append(self.settings_button)
+        self.help_button = ttk.Button(header, text='사용 안내', command=lambda: show_guide(self))
+        self.help_button.grid(row=0, column=2, rowspan=2, sticky='e', padx=(8, 0))
+        root.bind('<F1>', lambda _: show_guide(self))
 
         location = ttk.Frame(frame, style='Card.TFrame', padding=(16, 12))
         location.grid(row=1, column=0, sticky='ew', pady=(0, 14))
         location.columnconfigure(0, weight=1)
-        ttk.Label(location, text='작업 폴더', style='Section.TLabel').grid(row=0, column=0, sticky='w', pady=(0, 8))
+        ttk.Label(location, text='정리할 폴더 · 원본', style='Section.TLabel').grid(row=0, column=0, sticky='w', pady=(0, 8))
         self.connection_label = ttk.Label(location, textvariable=self.connection, style='CardMuted.TLabel')
         self.connection_label.grid(row=0, column=1, sticky='e')
         self.folder_entry = ttk.Entry(location, textvariable=self.folder)
         self.folder_entry.grid(row=1, column=0, sticky='ew', padx=(0, 10))
-        self.browse_button = ttk.Button(location, text='폴더 선택', command=self.choose_folder)
+        self.browse_button = ttk.Button(location, text='원본 폴더 선택', command=self.choose_folder)
         self.browse_button.grid(row=1, column=1)
         ttk.Label(location, textvariable=self.destination_hint, style='CardMuted.TLabel', wraplength=650).grid(row=2, column=0, sticky='w', pady=(8, 0))
         self.controls += [self.folder_entry, self.browse_button]
@@ -113,6 +117,7 @@ class App(ProjectUI):
         self.output_folder.trace_add('write', self.invalidate)
         self.update_connection()
         self.render()
+        self.navigate(4)
         root.protocol('WM_DELETE_WINDOW', self.close)
         self.poll_id = root.after(80, self.poll)
         self.monitor_id = root.after(30000, self.monitor_tick)
@@ -123,14 +128,17 @@ class App(ProjectUI):
         rail.pack_propagate(False)
         tk.Label(rail, text='FileNest', font=(self.family, 22, 'bold'), fg='white', bg=NAVY).pack(anchor='w', padx=22, pady=(25, 0))
         tk.Label(rail, text='AI FILE ORGANIZER', font=(self.family, 8), fg='#8FA4C3', bg=NAVY).pack(anchor='w', padx=24, pady=(0, 32))
-        self.nav_buttons = []
-        for index, title in enumerate(('파일 정리', '파일 검색', '작업 기록', '버전 관리', '저장·감시 설정')):
+        self.nav_buttons = [None] * 5
+        for index, title in ((4, '저장·감시 설정'), (0, '파일 정리'), (3, '버전 관리'), (1, '파일 검색'), (2, '작업 기록')):
+            if index in (4, 0):
+                tk.Label(rail, text='먼저 설정' if index == 4 else '파일 사용', font=(self.family, 9),
+                         fg='#8FA4C3', bg=NAVY).pack(anchor='w', padx=24, pady=(12, 4))
             button = tk.Button(rail, text=title, anchor='w', padx=18, pady=12, relief='flat', bd=0,
                                bg=NAVY, fg='#B9C8DF', activebackground='#253D60', activeforeground='white',
                                font=(self.family, 11), cursor='hand2', highlightbackground=NAVY, highlightcolor=BLUE,
                                command=lambda i=index: self.navigate(i))
             button.pack(fill='x', padx=12, pady=3)
-            self.nav_buttons.append(button)
+            self.nav_buttons[index] = button
 
     def build_review(self, review):
         review.columnconfigure(0, weight=1)
@@ -138,7 +146,7 @@ class App(ProjectUI):
         ttk.Label(review, textvariable=self.step, style='Muted.TLabel').grid(row=0, column=0, sticky='w', pady=(0, 12))
         cards = ttk.Frame(review)
         cards.grid(row=1, column=0, sticky='ew', pady=(0, 12))
-        for i, (label, style) in enumerate(zip(('분석한 파일', '정리할 파일', '검토 대기', '이동 완료'),
+        for i, (label, style) in enumerate(zip(('확인한 파일', '이동할 파일', '검토·건너뜀', '이동 완료'),
                                               ('Metric.TLabel', 'Blue.Metric.TLabel', 'Amber.Metric.TLabel', 'Green.Metric.TLabel'))):
             cards.columnconfigure(i, weight=1, uniform='metric')
             card = ttk.Frame(cards, style='Card.TFrame', padding=(16, 7))
@@ -263,9 +271,9 @@ class App(ProjectUI):
     def page_changed(self, _=None):
         index = self.tabs.index(self.tabs.select())
         self.page_title.set(('파일 정리', '파일 검색', '작업 기록', '버전 관리', '저장·감시 설정')[index])
-        self.page_description.set(('흩어진 파일을, 다시 찾기 좋은 구조로.', '정리한 자료를 내 PC에서 빠르게 찾아보세요.', '정리의 과정과 결과를 한눈에 확인하세요.', '변경을 살펴보고, 사용할 최종본을 직접 지정하세요.', 'AI 연결 없이 저장 위치와 최종본 후보 기준을 설정하세요.')[index])
+        self.page_description.set(('분석 → 분류 확인·수정 → 선택한 파일 이동 순서로 진행하세요.', '검색어를 입력하세요. 이전 버전은 필요할 때 함께 찾을 수 있어요.', '이동 내역을 확인하고 마지막 정리를 되돌릴 수 있어요.', '감시 켜기 → 같은 문서로 묶기 → 최종본 확정. 자동으로 이동하지 않아요.', '원본과 보관 폴더를 구분해 설정하세요. 저장만으로 분석·감시가 시작되지는 않아요.')[index])
         for widget in (self.settings_button, self.connection_label):
-            widget.grid_remove() if index == 4 else widget.grid()
+            widget.grid_remove() if index != 0 else widget.grid()
         for i, button in enumerate(self.nav_buttons):
             button.configure(bg='#294977' if i == index else NAVY, fg='white' if i == index else '#B9C8DF')
 
@@ -282,14 +290,14 @@ class App(ProjectUI):
             self.settings_dialog.lift()
             return
         dialog = self.settings_dialog = tk.Toplevel(self.root)
-        dialog.title('분석 설정')
+        dialog.title('AI 연결·분석 설정')
         dialog.transient(self.root)
         dialog.resizable(False, False)
         dialog.grab_set()
         frame = ttk.Frame(dialog, padding=22)
         frame.pack(fill='both', expand=True)
-        ttk.Label(frame, text='분석 설정', style='Title.TLabel').pack(anchor='w')
-        ttk.Label(frame, text='설정은 이번 실행 동안만 유지됩니다.', style='Muted.TLabel').pack(anchor='w', pady=(4, 12))
+        ttk.Label(frame, text='AI 연결·분석 설정', style='Title.TLabel').pack(anchor='w')
+        ttk.Label(frame, text='사용할 AI를 고른 뒤 저장하세요. 저장은 분석을 시작하지 않아요.\nAI 설정은 이번 실행 동안 유지됩니다.', style='Muted.TLabel').pack(anchor='w', pady=(4, 12))
         key = tk.StringVar(value=self.key.get())
         recursive = tk.BooleanVar(value=self.recursive.get())
         content = tk.BooleanVar(value=self.use_content.get())
@@ -326,7 +334,7 @@ class App(ProjectUI):
             local.pack_forget()
             is_local = provider.get() == 'Ollama · 내 PC'
             (local if is_local else cloud).pack(fill='x')
-            note.set('내 PC에 설치한 모델로 분석합니다. API 키와 API 요금이 필요 없습니다.\n민감 후보는 로컬 모드에서도 승인 후 분석·이동합니다.\nQwen3 14B는 텍스트 모델이며 이미지 내용 분석은 지원하지 않습니다.' if is_local else
+            note.set('내 PC에 설치한 모델로 분석합니다. API 키와 API 요금이 필요 없습니다.\n민감 후보는 로컬 모드에서도 승인 후 분석·이동합니다.\n모델의 텍스트·이미지 지원 여부는 연결 확인에서 볼 수 있습니다.' if is_local else
                      '허용된 파일명과 지원 내용이 OpenAI로 전송됩니다.\n민감 후보와 로컬 검사 불가 이미지는 먼저 검토 대기합니다.\n규칙 기반 검사여서 개인정보를 모두 탐지하지는 못합니다.')
         provider_box.bind('<<ComboboxSelected>>', select_provider)
         select_provider()
@@ -398,7 +406,7 @@ class App(ProjectUI):
         pending = self.engine.plan['items'] if self.engine and self.engine.plan else []
         count = sum(bool(i['selected']) for i in pending)
         has_plan = bool(self.engine and self.engine.plan)
-        self.primary_button.configure(text=f'{count}개 파일 정리' if count else '검토 후 정리하세요' if has_plan else 'AI 분석 시작')
+        self.primary_button.configure(text=f'{count}개 파일 이동' if count else '검토 후 정리하세요' if has_plan else 'AI 분석 시작')
         self.primary_button.state(['disabled'] if self.busy or not self.folder.get().strip() or (has_plan and not count) else ['!disabled'])
         if self.view_items:
             self.reanalyze_button.pack(side='right', padx=(0, 8))
@@ -476,12 +484,12 @@ class App(ProjectUI):
         pending = self.engine.plan['items'] if self.engine and self.engine.plan else []
         for variable, value in zip(self.metrics, (len(items), sum(bool(i['selected']) for i in pending), held, moved)):
             variable.set(str(value))
-        self.step.set('03  검토 후 정리 · 제안된 위치와 이름을 확인하세요' if pending else
+        self.step.set('이동 전 확인: 파일 선택 → 분류·파일명 수정 → 오른쪽 아래 파일 이동' if pending else
                       '정리 완료 · 더 보기에서 마지막 작업을 되돌릴 수 있어요' if moved else
-                      '01  폴더 선택    →    02  AI 분석    →    03  검토 후 정리')
+                      'AI 분석은 제안만 만들어요. 확인한 뒤 파일 이동을 누르면 원본이 이동해요.')
         if not self.table.get_children():
-            self.empty_title.configure(text='표시할 파일이 없어요' if items else '폴더 하나로 시작하세요')
-            self.empty_copy.configure(text='다른 필터를 선택해 보세요.' if items else 'AI가 분류를 제안하면, 확인 후 정리할 수 있어요.')
+            self.empty_title.configure(text='표시할 파일이 없어요' if items else '분석 결과가 여기에 표시돼요')
+            self.empty_copy.configure(text='다른 필터를 선택해 보세요.' if items else '오른쪽 위에서 AI를 연결하고\n아래의 AI 분석 시작을 누르세요.')
             self.empty.place(relx=.5, rely=.52, anchor='center')
         else:
             self.empty.place_forget()
@@ -584,6 +592,7 @@ class App(ProjectUI):
             return
         if not local:
             os.environ['HOCHI_AI_KEY'] = self.key.get().strip()
+        self.navigate(0)
         self.engine = engine
         self.clear_table()
         def task():

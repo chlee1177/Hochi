@@ -14,7 +14,7 @@ class ProjectUI:
         self.output_folder = tk.StringVar()
         self.quiet_days = tk.IntVar(value=7)
         self.monitor_enabled = tk.BooleanVar(value=False)
-        self.monitor_hint = tk.StringVar(value='감시를 시작하면 작업 폴더와 저장 폴더를 30초마다 확인합니다.')
+        self.monitor_hint = tk.StringVar(value='감시는 선택 기능이에요. 켜면 원본·보관 폴더의 변경을 30초마다 확인합니다.')
         self.destination_hint = tk.StringVar(value='저장 위치: 작업 폴더/AI_정리')
         self.include_previous = tk.BooleanVar(value=False)
         self.version_items = {}
@@ -46,15 +46,15 @@ class ProjectUI:
         source = self.folder.get().strip()
         self.project_output_draft.set(self.output_folder.get() or (str(Path(source).expanduser() / OUTPUT_NAME) if source else ''))
         self.project_days_draft.set(str(self.quiet_days.get()))
-        self.project_notice.set('설정 저장 후 적용됩니다. AI 분석과 폴더 감시는 각각 별도로 시작하세요.')
+        self.project_notice.set('① 상단에서 원본 폴더 선택  ② 보관 폴더 지정  ③ 설정 저장 후 파일 정리 화면으로 이동')
 
     def build_project_settings(self, panel):
         panel.columnconfigure(0, weight=1)
         frame = ttk.Frame(panel, style='Card.TFrame', padding=20)
         frame.grid(row=0, column=0, sticky='ew')
         frame.columnconfigure(0, weight=1)
-        ttk.Label(frame, text='저장 위치', style='Section.TLabel').grid(row=0, column=0, sticky='w')
-        ttk.Label(frame, text='분류한 파일을 저장할 디스크와 폴더를 지정하세요.', style='CardMuted.TLabel').grid(row=1, column=0, sticky='w', pady=(4, 10))
+        ttk.Label(frame, text='정리한 파일을 보관할 폴더', style='Section.TLabel').grid(row=0, column=0, sticky='w')
+        ttk.Label(frame, text='파일 이동을 누르면 이곳에 분류별 폴더가 만들어집니다.', style='CardMuted.TLabel').grid(row=1, column=0, sticky='w', pady=(4, 10))
         output_entry = ttk.Entry(frame, textvariable=self.project_output_draft)
         output_entry.grid(row=2, column=0, sticky='ew', padx=(0, 8))
         def browse():
@@ -63,19 +63,20 @@ class ProjectUI:
                 self.project_output_draft.set(selected)
         browse_button = ttk.Button(frame, text='저장 폴더 선택', command=browse)
         browse_button.grid(row=2, column=1)
-        ttk.Label(frame, text='최종본 후보 대기 기간', style='Section.TLabel').grid(row=3, column=0, sticky='w', pady=(18, 8))
+        ttk.Label(frame, text='버전 관리 · 최종본 후보 대기 기간', style='Section.TLabel').grid(row=3, column=0, sticky='w', pady=(18, 8))
         period = ttk.Frame(frame, style='Card.TFrame')
         period.grid(row=4, column=0, sticky='w')
         days = ttk.Spinbox(period, from_=1, to=365, textvariable=self.project_days_draft, width=8)
         days.pack(side='left')
-        ttk.Label(period, text='일 동안 변경이 없으면 후보로 표시 (1~365일)', style='CardMuted.TLabel').pack(side='left', padx=10)
-        ttk.Label(frame, text='감시는 버전 관리에서 시작하며 30초마다 파일 변경을 확인합니다.\n'
+        ttk.Label(period, text='일 동안 수정이 없으면 최종본 후보로 표시 (1~365일)', style='CardMuted.TLabel').pack(side='left', padx=10)
+        ttk.Label(frame, text='후보는 추천이에요. 실제 사용할 최종본은 직접 선택하세요.\n'
                   '저장 위치를 바꿔도 기존 파일과 기록은 이전 위치에 남습니다.',
                   style='CardMuted.TLabel').grid(row=5, column=0, columnspan=2, sticky='w', pady=(14, 0))
         actions = ttk.Frame(panel)
         actions.grid(row=1, column=0, sticky='ew', pady=14)
         self.project_save_button = ttk.Button(actions, text='설정 저장', style='Primary.TButton', command=self.save_project_settings)
         self.project_save_button.pack(side='right')
+        ttk.Button(actions, text='파일 정리 화면으로 →', command=lambda: self.navigate(0)).pack(side='left')
         reset = ttk.Button(actions, text='변경 취소', command=self.reset_project_draft)
         reset.pack(side='right', padx=8)
         self.controls += [output_entry, browse_button, days, self.project_save_button, reset]
@@ -218,7 +219,7 @@ class ProjectUI:
             if item['path'] in selected:
                 self.version_table.selection_add(row)
         self.monitor_hint.set(f"{'감시 중 · 30초 간격' if self.monitor_enabled.get() else '수동 확인'} · {len(rows)}개 · "
-                              f'{self.quiet_days.get()}일 변경 없음 → 최종본 후보 · 묶음 제안은 직접 확인 후 묶으세요.')
+                              f'{self.quiet_days.get()}일 변경 없음 → 후보 표시 · Ctrl/Shift로 여러 파일을 골라 묶으세요.')
         self.status.set('버전 기록 갱신 완료 · 자동 AI 전송·파일 이동 없음 · 프로그램 종료 시 감시 중지')
 
     def version_selection(self, _=None):

@@ -1,0 +1,42 @@
+{
+  "record": "013",
+  "date": "2026-10-28",
+  "timezone": "Asia/Seoul",
+  "version": "v6.4",
+  "baseline_commit": "913941d6da2514eaebc63867d01f63d5313b0426",
+  "user_request": "설정이나 사용하는게 좀 헷갈리게 배치되어 있고 그런데 설명도 간략하게 추가해서 사용하기 편하게 만들어줄래",
+  "changes": [
+    "메뉴를 저장·감시 설정, 파일 정리, 버전 관리, 파일 검색, 작업 기록 순으로 배치하고 설정 화면에서 시작한다.",
+    "원본 폴더와 보관 폴더의 역할을 구분하고 각 화면에 짧은 행동 안내를 추가했다.",
+    "설정 저장과 화면 이동은 분석을 시작하지 않는다. AI 연결·분석 설정 버튼은 파일 정리 화면에만 표시한다.",
+    "실제 이동 버튼을 N개 파일 이동으로 표시해 AI 분석과 구분했다.",
+    "사용 안내 버튼과 F1로 사용 순서와 검토 대기·건너뜀·최종본 후보의 의미를 확인한다.",
+    "이전 Qwen3 14B 전용 설명을 제거하고 연결한 모델의 이미지 지원 여부를 확인하도록 안내했다."
+  ],
+  "development_events": [
+    "현재 화면과 설정 저장·분석·감시 동작을 검토했다.",
+    "설정 우선 메뉴 배치, 명확한 버튼 이름, 화면별 한 줄 설명과 별도 사용 안내 창을 구현했다.",
+    "기존 GUI 통합 검사가 통과했다. 1100x800 설정·파일 정리 화면을 캡처해 배치를 확인했다.",
+    "사용 안내 창의 중복 열기 방지, 닫기, 화면 크기, AI 미호출, 기존 분류 계획 유지 검사를 추가하고 GUI 검사를 다시 통과했다."
+  ],
+  "validation": {
+    "gui": "PASS: existing OpenAI/Ollama, v6, v6.2, v6.3 and v6.4 guidance flows",
+    "unit_suite_rerun": false,
+    "previous_unit_test_count": 105,
+    "actual_ai_requests": false,
+    "windows_execution": false,
+    "compileall": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "limitations": [
+    "실제 Windows 표시 배율 및 GPU 모델 추론은 이번 검증 범위에 포함하지 않았다.",
+    "AI 연결 설정은 기존처럼 현재 실행 동안 유지되며, 저장 위치·후보 대기 기간은 원본 폴더별로 저장된다."
+  ],
+  "changed_files_sha256": {
+    "file-organizer/app.py": "2b8564e7479e81f53f537ed71ac42867adf8ea41ed109443d5771de6b406f1b7",
+    "file-organizer/project_ui.py": "c31b18cc4073681390a0fbf13b7a7b8675d09229e665e264b02b5b588622dc43",
+    "file-organizer/usage_guide.py": "9fe71ed25c5ffc38bd8069b30e8bca00fec9b8202d993e15ec4a7feb83f087f1",
+    "file-organizer/README.md": "7dfed9e88c2e5ad1493aad56c1299d4148498bc4cb90817ff05fef4f330ad8f2",
+    "tests/smoke_desktop.py": "5f750f26db8b5384476d458300cd284126e7cade727cad39e0ed9b8577434945"
+  }
+}

@@ -50,6 +50,7 @@ with tempfile.TemporaryDirectory() as directory:
     app = App(root)
     app.provider.set('openai')
     root.update()
+    assert app.tabs.index(app.tabs.select()) == 4
     assert app.primary_button.instate(['disabled'])
     assert not app.detail_actions.winfo_ismapped()
     assert not app.cancel_button.winfo_ismapped()
@@ -85,7 +86,7 @@ with tempfile.TemporaryDirectory() as directory:
         assert source.exists() and sensitive.exists()
         assert len(app.table.get_children()) == 4
         assert [v.get() for v in app.metrics] == ['4', '2', '2', '0']
-        assert app.primary_button.cget('text') == '2개 파일 정리'
+        assert app.primary_button.cget('text') == '2개 파일 이동'
         app.table.selection_set(app.rows[relative])
         root.update()
         assert not app.external_button.winfo_ismapped(), 'Only review files need an AI override'
@@ -425,6 +426,19 @@ with tempfile.TemporaryDirectory() as directory:
         assert app.tabs.index(app.tabs.select()) == 4
         assert root.grab_current() is None
         assert not app.settings_button.winfo_ismapped()
+        app.help_button.invoke()
+        root.update()
+        guide = app.help_dialog
+        assert root.grab_current() == guide
+        app.help_button.invoke()
+        assert app.help_dialog == guide
+        assert guide.winfo_height() < root.winfo_screenheight()
+        capture(guide, 'usage-guide')
+        next(w for w in widgets(guide) if isinstance(w, ttk.Button) and w.cget('text') == '닫기').invoke()
+        root.update()
+        assert root.grab_current() is None
+        assert app.engine is None and not app.busy and not app.monitor_enabled.get()
+        ai.assert_not_called()
         errors.assert_not_called()
         app.folder.set(str(source))
         app.project_output_draft.set(str(output))
@@ -460,6 +474,10 @@ with tempfile.TemporaryDirectory() as directory:
         app.start(False)
         wait(root, app)
         plan_id = app.engine.plan['id']
+        app.help_button.invoke()
+        root.update()
+        assert app.engine.plan['id'] == plan_id and note.exists()
+        app.help_dialog.destroy()
         app.navigate(4)
         app.project_days_draft.set('5')
         app.project_save_button.invoke()
@@ -476,3 +494,4 @@ with tempfile.TemporaryDirectory() as directory:
         errors.assert_not_called()
     app.close()
     print('PASS GUI v6.3: independent setup with no AI/key, saved drafts, explicit monitor start, minimum layout, preserve plan for period/unchanged saves, invalidate only on output change')
+    print('PASS GUI v6.4: setup-first navigation, analysis opens results, explicit move action, help opens/closes without AI or plan changes, single help window and screen fit')

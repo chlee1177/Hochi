@@ -1,0 +1,5 @@
+PASS GUI: OpenAI regression; Ollama settings, local connection check, no-key HTTP analysis, provider invalidation, private-file approval, selected move and undo without cloud fallback (mock servers)
+PASS GUI v6: external destination persistence, slash/backslash rules, remembered edit, monitoring, explicit grouping/final, previous-version search, move/undo and source-switch reset
+PASS GUI v6.2: unsupported files continue, type/reason display, skipped filter, open location, manual skip, supported-only move and undo
+PASS GUI v6.3: independent setup with no AI/key, saved drafts, explicit monitor start, minimum layout, preserve plan for period/unchanged saves, invalidate only on output change
+PASS GUI v6.4: setup-first navigation, analysis opens results, explicit move action, help opens/closes without AI or plan changes, single help window and screen fit
