@@ -128,11 +128,14 @@ def evidence(path, use_content=True):
 
 
 class FolderOrganizer:
-    def __init__(self, folder, recursive=True, use_content=True, ai=None, sensitive_terms=()):
+    def __init__(self, folder, recursive=True, use_content=True, ai=None, sensitive_terms=(), output=None):
         self.root = Path(folder).expanduser().resolve(strict=True)
         if not self.root.is_dir():
             raise ValueError('정리할 폴더를 선택하세요.')
-        self.output = self.root / OUTPUT_NAME
+        from project import load_project
+        output = output if output is not None else load_project(self.root)['output']
+        self.output = Path(output).expanduser().absolute() if output else self.root / OUTPUT_NAME
+        self._validate_output()
         self.journal = self.output / '.hochi-journal.json'
         self.recursive = recursive
         self.use_content = use_content
@@ -141,8 +144,48 @@ class FolderOrganizer:
         self.skipped = []
         self.sensitive_terms = tuple(sensitive_terms)
 
+    def _validate_output(self):
+        if self.output == self.root or self.root.is_relative_to(self.output):
+            raise ValueError('저장 폴더는 작업 폴더와 같거나 그 상위일 수 없습니다.')
+        if '..' in self.output.parts or any(is_link(p) for p in [self.output, *self.output.parents]):
+            raise ValueError('저장 폴더에 링크나 상위 이동 경로를 사용할 수 없습니다.')
+        if self.output.exists() and not self.output.is_dir():
+            raise ValueError('저장 위치는 폴더여야 합니다.')
+        owner = self._safe(self.output / '.hochi-source.json', self.output)
+        if owner.exists() and json.loads(owner.read_text(encoding='utf-8')) != str(self.root):
+            raise ValueError('다른 작업 폴더에서 사용하는 저장 폴더입니다. 별도 하위 폴더를 선택하세요.')
+        if not owner.exists() and self.output != self.root / OUTPUT_NAME and (self.output / '.hochi-index.sqlite3').exists():
+            raise ValueError('기존 정리 기록이 있는 폴더입니다. 새 저장 폴더를 선택하세요.')
+
+    def record_path(self, path):
+        path = Path(path)
+        return str(path.relative_to(self.root)) if path.is_relative_to(self.root) else str(path)
+
+    def resolve_record(self, value):
+        path = self.root / value
+        parent = self.output if path.is_relative_to(self.output) else self.root
+        return self._safe(path, parent)
+
+    def rules(self):
+        path = self._safe(self.output / '.hochi-rules.json', self.output)
+        rules = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
+        return {folder_path(k): folder_path(v) for k, v in rules.items()}
+
+    def save_rule(self, original, destination=None):
+        original = folder_path(original.replace('\\', '/'))
+        destination = folder_path(destination.replace('\\', '/')) if destination is not None else None
+        with self._locked():
+            rules = self.rules()
+            if destination is None:
+                rules.pop(original, None)
+            else:
+                rules[original] = destination
+            from project import atomic_json
+            atomic_json(self._safe(self.output / '.hochi-rules.json', self.output), rules)
+        return rules
+
     def _catalog(self):
-        self._safe(self.output, self.root)
+        self._validate_output()
         path = self.output / '.hochi-index.sqlite3'
         for suffix in ('', '-journal', '-wal', '-shm'):
             self._safe(Path(str(path) + suffix), self.output)
@@ -181,7 +224,7 @@ class FolderOrganizer:
             keep = []
             for name in sorted(dirs):
                 path = base / name
-                if path == self.output:
+                if path == self.output or (path / '.hochi-source.json').is_file() or name.startswith('.hochi-') or name.startswith('.hochi.'):
                     continue
                 if is_link(path):
                     self.skipped.append(str(path.relative_to(self.root)))
@@ -190,7 +233,7 @@ class FolderOrganizer:
             dirs[:] = keep
             for name in sorted(names):
                 path = base / name
-                if path == self.output:
+                if path == self.output or name.startswith('.hochi-') or name.startswith('.hochi.'):
                     continue
                 if is_link(path) or not path.is_file():
                     self.skipped.append(str(path.relative_to(self.root)))
@@ -245,6 +288,10 @@ class FolderOrganizer:
             if result['confidence'] < 0.75:
                 classified['review_reasons'].append('AI 분류 확신도 낮음')
             review = bool(classified['review_reasons'])
+            classified['ai_folder'] = result['folder']
+            if not classified['sensitive']:
+                result['folder'] = self.rules().get(result['folder'], result['folder'])
+                result['category'] = result['folder'].split('/')[0]
             classified.update(**result, scope=scope, review_required=review, selected=not review,
                               status='review' if review else 'analyzed')
         check_cancel(cancel)
@@ -254,7 +301,7 @@ class FolderOrganizer:
 
     def analyze(self, progress=None, cancel=None):
         self.plan = None
-        self._safe(self.output, self.root)
+        self._validate_output()
         files = self.scan(cancel)
         if not files:
             raise ValueError('분석할 파일이 없습니다. AI_정리 폴더와 링크는 제외됩니다.')
@@ -279,7 +326,7 @@ class FolderOrganizer:
         item = next((item for item in self.plan['items'] if item['relative'] == relative), None)
         if item is None:
             raise ValueError('현재 계획에 없는 파일입니다.')
-        destination = folder_path(folder)
+        destination = folder_path(folder.replace('\\', '/'))
         filename = name_component(new_name, limit=255, allow_hidden=True)
         approved = bool(approve_review or item['approved_move'])
         if selected and item['review_required'] and not approved:
@@ -311,17 +358,23 @@ class FolderOrganizer:
         self.plan['id'] = uuid.uuid4().hex
         return item
 
-    def search(self, query=''):
-        records = self._live_records()
-        return self._catalog().search(query, records)
+    def search(self, query='', include_previous=False):
+        from versions import VersionMonitor
+        from project import load_project
+        monitor = VersionMonitor(self, load_project(self.root)['quiet_days'])
+        records = monitor.search_records(self._live_records(), include_previous)
+        results = self._catalog().search(query, records, limit=len(records))
+        return sorted(results, key=lambda r: r.get('version_state') != '확정 최종본')[:100]
 
     def _live_records(self):
         records = []
         for record in self._catalog().records():
-            path = self._safe(self.root / record['current_path'], self.root)
+            path = self.resolve_record(record['current_path'])
             if not path.is_file():
                 continue
             if snapshot(path)[:2] != record['snapshot'][:2]:
+                continue
+            if digest(path) != record['sha256']:
                 continue
             records.append(record)
         return records
@@ -336,13 +389,14 @@ class FolderOrganizer:
         sizes = defaultdict(list)
         def failed(error):
             raise error
-        for directory, dirs, names in os.walk(self.root, followlinks=False, onerror=failed):
+        roots = [self.root] + ([self.output] if not self.output.is_relative_to(self.root) and self.output.exists() else [])
+        for directory, dirs, names in (entry for root in roots for entry in os.walk(root, followlinks=False, onerror=failed)):
             base = Path(directory)
             dirs[:] = [name for name in dirs if not is_link(base / name) and (self.recursive or base.is_relative_to(self.output) or (base / name) == self.output)]
             for name in names:
                 check_cancel(cancel)
                 path = base / name
-                if is_link(path) or not path.is_file() or (path.parent == self.output and name.startswith('.')):
+                if is_link(path) or not path.is_file() or name.startswith('.hochi') or (path.parent == self.output and name.startswith('.')):
                     continue
                 sizes[path.stat().st_size].append(path)
         matches = defaultdict(list)
@@ -355,13 +409,13 @@ class FolderOrganizer:
                 checksum = digest(path)
                 if snapshot(path) != before:
                     raise ValueError('중복 검사 중 파일이 변경되었습니다.')
-                matches[checksum].append(str(path.relative_to(self.root)))
+                matches[checksum].append(self.record_path(path))
         return [{'sha256': checksum, 'files': paths} for checksum, paths in matches.items() if len(paths) > 1]
 
     @contextmanager
     def _locked(self):
-        self._safe(self.output, self.root)
-        self.output.mkdir(exist_ok=True)
+        self._validate_output()
+        self.output.mkdir(parents=True, exist_ok=True)
         lock = self._safe(self.output / '.hochi.lock', self.output)
         with lock.open('a+b') as stream:
             stream.seek(0)
@@ -378,6 +432,11 @@ class FolderOrganizer:
             except OSError:
                 raise ValueError('이 폴더에서 다른 정리 작업이 진행 중입니다.') from None
             try:
+                self._validate_output()
+                from project import atomic_json
+                owner = self.output / '.hochi-source.json'
+                if not owner.exists():
+                    atomic_json(owner, str(self.root))
                 yield
             finally:
                 if os.name == 'nt':
@@ -485,7 +544,7 @@ class FolderOrganizer:
                         raise ValueError(f'이동 중 원본이 바뀌었습니다: {source.name}')
                     source.unlink()
                     record = self._record(item)
-                    record.update(current_path=str(target.relative_to(self.root)), snapshot=snapshot(target),
+                    record.update(current_path=self.record_path(target), snapshot=snapshot(target),
                                   status='moved', updated_at=datetime.now(timezone.utc).isoformat())
                     moved_records.append(record)
                     if progress:

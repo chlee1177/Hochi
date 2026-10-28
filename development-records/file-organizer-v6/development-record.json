@@ -1,0 +1,68 @@
+{
+  "record": "009",
+  "version": "v6",
+  "date": "2026-10-28",
+  "timezone": "Asia/Seoul",
+  "baseline_commit": "6a6de0b45d6d2abe7f9d6442a8aa72068adca5ec",
+  "user_requests": [
+    "AI까진 연결했고 추가적으로 생각해봤는데 분류하고 어느 디스크에 어떻게 만들어서 둘지 폴더를 지정해 놓는 기능과 RAG의 단점이 만약 파일이 최최종.doc 최최최최종.doc 이렇게 계속 변경되어도 마지막으로 만들어도 실제로는 그 전것을 쓸수도 있으니 진짜 최종으로 쓴 파일이 뭔지 모르는 문제가 있으니 특정폴더를 계속 모니터링하고 있다가 새로 생기고 일정 기간이 지났으면 마지막으로 쓴게 어떤건지 태그까지 붙이는 기능을 추가하는게 해결 방법이 될까?",
+    "추가해주고 분류규칙도 AI가 분류로 `대학교\\과목명` 이렇게 해도 내가 수정이 가능하게 해서  수정한내용/수정한내용 으로 분류도 되게 해줄래?"
+  ],
+  "prior_setup_discussion": [
+    "사용자는 Ollama 모델을 다운로드했다고 보고했고 텍스트와 이미지를 하나의 모델로 처리하길 원했다.",
+    "초기 Qwen2.5-VL 추천을 최신 선택지를 확인하지 못한 안내라고 정정한 뒤 공식 Ollama 목록의 Qwen3.5 9B/27B를 설명했다.",
+    "품질 우선 선택지로 qwen3.5:27b 다운로드·설정 방법을, 기존 qwen3:14b의 stop/rm 방법을 안내했다.",
+    "사용자가 AI 연결 완료를 보고했지만 개발 환경에서 실제 Qwen3.5 추론이나 GPU 성능을 검증한 것은 아니다."
+  ],
+  "decisions": [
+    "분류 경로는 1~3단계 상대 경로이며 사용자 입력은 /와 역슬래시를 모두 허용한다.",
+    "정확히 같은 AI 제안 경로에 다음 분석부터 적용하는 사용자 규칙을 저장한다. 현재 다른 계획과 기존 파일을 자동 수정하지 않는다.",
+    "저장 위치와 후보 대기 기간은 작업 폴더에, 규칙/색인/복구/버전 상태는 선택한 저장 폴더에 보관한다.",
+    "기본 7일(1~365일 설정)의 변경 없음은 후보 근거일 뿐이며 실제 최종본은 사용자가 지정한다.",
+    "이름과 AI 요약/태그 유사도는 묶음 제안이다. 사용자가 확인한 묶음과 최종본만 검색 제외·우선순위에 반영한다.",
+    "최종본 이후 변경 또는 새로 발견한 유사 파일은 재검토 경고를 표시하고 이전 파일을 조용히 숨기지 않는다.",
+    "30초 폴링은 앱 실행 중 동작하고 AI 전송이나 자동 이동을 실행하지 않는다. 파일명과 본문에 태그를 쓰지 않는다."
+  ],
+  "development_events": [
+    "v5 소스와 기존 71개 테스트를 기준으로 출력 경로가 작업 폴더 내부로 고정된 부분을 확인했다.",
+    "별도 저장 경로, 출력 폴더 소유 작업 검사, 영구 분류 규칙, 설정 저장, 외부 경로의 검색/중복/되돌리기를 구현했다.",
+    "폴더 내용 해시 비교, 변경 중 파일 재시도, 명확한 이름 변경 식별자 유지, 명시적 묶음/확정/해제/분리와 검색 반영을 추가했다.",
+    "최초 테스트에서 로컬 모의 HTTP 서버가 샌드박스 소켓 권한 때문에 실패했다. 네트워크 사용 권한을 적용해 기존 71개를 통과했다.",
+    "최초 GUI 회귀 검사에서 1100x760 창의 상세 설명 영역이 작아 실패했다. 저장 위치 표시를 반영해 최소 높이를 800으로 조정했다.",
+    "새 GUI 흐름을 추가하고 이름만 제시하던 버전 제안에 저장된 요약/태그 유사 후보도 연결했다.",
+    "최종 검토에서 아직 묶지 않은 새 버전이 생기는 경우를 보완했다. 같은 이름/요약 후보가 확정 이후 발견되면 재확인을 표시한다.",
+    "전체 95개 자동 테스트와 OpenAI/Ollama 기존 GUI 및 v6 새 GUI 통합 테스트 통과. 최종 화면 캡처를 확인했다."
+  ],
+  "validation": {
+    "unit_tests": 95,
+    "new_tests": 24,
+    "gui": "PASS: existing OpenAI/Ollama plus destination/rules/monitor/group/final/search/move/undo/new-version-warning",
+    "python": "unit tests Python 3.12; GUI system Python with Tk 8.6 and Xvfb",
+    "actual_ai_requests": false,
+    "actual_windows_or_cross_disk_test": false
+  },
+  "limitations": [
+    "Windows/RTX4090 실기기 및 실제 디스크 간 이동은 미검증. 클라우드의 서로 다른 폴더에서 이동과 실패 복구 흐름을 검증했다.",
+    "RAG 생성·임베딩 검색, OS 상주 감시, 외부 프로그램의 실제 열람/제출 판별, 스캔 PDF OCR, 파일 내용의 과거 버전 백업은 구현하지 않았다.",
+    "감시가 꺼져 있거나 폴링 사이에 생겼다가 사라지는 파일의 모든 이력을 복원하지 않는다. 전체 해시 검사로 큰 폴더에서는 I/O가 증가한다.",
+    "새 모델 다운로드·F 드라이브 수정은 사용자 PC에서 수행해야 한다. AI 연결 설정은 기존처럼 환경변수 또는 실행 중 UI로 지정한다."
+  ],
+  "changed_files_sha256": {
+    "README.md": "ed3f69065d79fa2ad516b4c941aa27a5311cd63ce4e380e14d53cc5f9cff270f",
+    "file-organizer/README.md": "a657fde4483e974837bc042ea29f956534b4d9cf2beb664af1c1c976e9cb257a",
+    "file-organizer/app.py": "3e81421cf5ca70e07e5c4213a9c720dce6cd3022818998cb434b943a10d5cf3a",
+    "file-organizer/folder_organizer.py": "fbf04f194542af7ad7d47a4f84666fef37e69396b65619390d066874a846cc1f",
+    "file-organizer/project.py": "3a60b1e39336929b956a07ae35915c323b158373e3f8a2515b279d3900aae448",
+    "file-organizer/project_ui.py": "ae70aa240ecc8695eafc760a897619ee6659dbe795752205878ac9c7d80d3f4b",
+    "file-organizer/versions.py": "292ad2b972ed42ff44a2f1a243a46abe4591249a25d6c5ee7e00977ce0529ecb",
+    "tests/test_workspace_v6.py": "95aea42647328ef1952f0f834d3b6edf5a5fc22d940e2fb85f2c9135059b16e0",
+    "tests/smoke_desktop.py": "89bd1d664c0cc482fc24793a356def2e7ba3decd2a68d6a469906690395593e4"
+  },
+  "evidence_sha256": {
+    "unit-tests.txt": "54883986e77e3d0e3736cd1e016f872782bf32b2bfb59df854a3eeaa35697aca",
+    "gui-tests.txt": "0d8d778fbdf7d3bf75a8de6424f41e4abf45085385840bb5509b40f5e0532445",
+    "desktop-version-warning.png": "e3597bd0b6475ba57e3dc77954ec4fabe2708bf034079fe84e0ddd42c3e2047e",
+    "desktop-versions.png": "3301f1a64458f6f317893d56cfc5a033c3dc512f5e552516ed079d5ac6edf1b2",
+    "desktop-rules.png": "664a942d93df4198cbcf5095199f8f0e9e39b7a4a662ba3118e28b6f78952dc4"
+  }
+}
